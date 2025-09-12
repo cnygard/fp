@@ -86,6 +86,7 @@ if __name__ == "__main__":
     NA_illum = config["NA_illum"]  # illumination numerical aperture
     theta_max = np.rad2deg(np.arcsin(NA_illum))
     print(f"Max rotation (deg) {theta_max:.2e}")
+    print(f"Max scan distance (m) {object_distance * np.tan(np.arcsin(NA_illum)):.2e}")
     X_m = X * dx
 
     I_center = propagate(0)
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     fig.suptitle(f"Config: {config['title']}")
 
     im00 = axs[0, 0].imshow(img, cmap="gray")
-    axs[0, 0].set_title("Sample object")
+    axs[0, 0].set_title(f"Sample (z={object_distance:.2e}m)")
     fig.colorbar(im00, ax=axs[0, 0])
     scalebar = ScaleBar(dx, "m", location="lower right")
     axs[0, 0].add_artist(scalebar)
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     axs[1, 0].add_artist(scalebar)
 
     im11 = axs[1, 1].imshow(I_shift, cmap="gray")
-    axs[1, 1].set_title(rf"$\theta = {theta_max}^\circ$")
+    axs[1, 1].set_title(rf"$\theta = {theta_max:.2e}^\circ$")
     fig.colorbar(im11, ax=axs[1, 1])
     scalebar = ScaleBar(dx, "m", location="lower right")
     axs[1, 1].add_artist(scalebar)
