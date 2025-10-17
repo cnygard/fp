@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 from matplotlib_scalebar.scalebar import ScaleBar
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from torch.fft import fft2, ifft2, fftshift, ifftshift
 import cv2
+import torch
+
 
 km = 1e3
 m = 1
@@ -20,19 +22,35 @@ def iF(x):
     return ifft2(ifftshift(x))
 
 
-def propagate(theta_deg):
-    theta_rad = np.deg2rad(theta_deg)
+def propagate(sample: torch.Tensor, theta: torch.Tensor, config: dict):
+    """Applys Fourier ptychography forward imaging model.
+
+    Args:
+        sample: Complex sample to propagate
+        theta: 2D rotation (i.e., [theta_y, theta_x]) in degrees
+        config: Optical system configuration info
+
+    Returns:
+        Intensity measurement at the image plane.
+    """
+    theta_rad = torch.deg2rad(theta)
 
     # === Compute lateral wavevector shift ===
-    kx = k * np.sin(theta_rad)  # in rad/m
-    E_illum = np.exp(1j * kx * X_m)  # tilted plane wave
+    E_illum = torch.exp(
+        1j
+        * config["k"]
+        * (
+            torch.sin(theta_rad[0]) * config["Y_m"]
+            + torch.sin(theta_rad[1]) * config["X_m"]
+        )
+    )  # tilted plane wave
 
     # === Simulate FPM measurement ===
-    field = img * E_illum
+    field = sample * E_illum
     spectrum = F(field)
     filtered = spectrum * M
-    recon = np.abs(iF(filtered)) ** 2
-    return recon
+    image = torch.abs(iF(filtered)) ** 2
+    return image
 
 
 # Microscopy configuration
@@ -56,68 +74,68 @@ FPI_CONFIG = {
 
 if __name__ == "__main__":
     # Set experimental configuration
-    config = FPI_CONFIG
+    config = FPM_CONFIG
     print(config)
 
     # === Load and preprocess image ===
-    img = cv2.imread("/Users/m/Downloads/usaf.jpg", 0).astype(np.float32)
-    img = img / 255.0  # normalize
+    sample = cv2.imread("/Users/m/Downloads/usaf.jpg", 0).astype(np.float32)
+    sample = sample / 255.0  # normalize
+    sample = torch.from_numpy(sample)
 
-    N = img.shape[0]  # assume square image
-    dx = config["dx"]  # sampling step in object space
-    print("Object width", dx * N)
-    wavelength = 532 * nm  # wavelength
-    k = 2 * np.pi / wavelength  # wave number
+    config["N"] = sample.shape[0]  # assume square image
+    print("Object width", config["dx"] * config["N"])
+    config["wavelength"] = 532 * nm  # wavelength
+    config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
     # === Define pupil mask (circular aperture) ===
-    aperture_diameter = config["aperture_diameter"]
-    object_distance = config["object_distance"]
-    NA_obj = aperture_diameter / (2 * object_distance)
+    NA_obj = config["aperture_diameter"] / (2 * config["object_distance"])
     print(f"Objective NA {NA_obj:.2e}")
-    pupil_radius = int(NA_obj * N * dx / wavelength)  # in pixels
+    pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
     print(f"Aperture radius (pixels): {pupil_radius}")
 
-    x = np.arange(-N // 2, N // 2)
-    X, Y = np.meshgrid(x, x)
-    R = np.sqrt(X**2 + Y**2)
+    x = torch.arange(-config["N"] // 2, config["N"] // 2)
+    Y, X = torch.meshgrid(x, x, indexing="ij")
+    R = torch.sqrt(X**2 + Y**2)
     M = R < pupil_radius  # circular aperture mask
 
     # === Define illumination angle ===
-    NA_illum = config["NA_illum"]  # illumination numerical aperture
-    theta_max = np.rad2deg(np.arcsin(NA_illum))
+    theta_max = np.rad2deg(np.arcsin(config["NA_illum"]))
     print(f"Max rotation (deg) {theta_max:.2e}")
-    print(f"Max scan distance (m) {object_distance * np.tan(np.arcsin(NA_illum)):.2e}")
-    X_m = X * dx
+    print(
+        f"Max scan distance (m) {config['object_distance'] * np.tan(np.arcsin(config['NA_illum'])):.2e}"
+    )
+    config["X_m"] = X * config["dx"]
+    config["Y_m"] = Y * config["dx"]
 
-    I_center = propagate(0)
-    I_shift = propagate(theta_max / 4)
+    I_center = propagate(sample, torch.tensor([0, 0]), config)
+    I_shift = propagate(sample, torch.tensor([0, theta_max / 4]), config)
 
     # === Display ===
     fig, axs = plt.subplots(2, 2)
     fig.suptitle(f"Config: {config['title']}")
 
-    im00 = axs[0, 0].imshow(img, cmap="gray")
-    axs[0, 0].set_title(f"Sample (z={object_distance:.2e}m)")
+    im00 = axs[0, 0].imshow(sample, cmap="gray")
+    axs[0, 0].set_title(f"Sample (z={config['object_distance']:.2e}m)")
     fig.colorbar(im00, ax=axs[0, 0])
-    scalebar = ScaleBar(dx, "m", location="lower right")
+    scalebar = ScaleBar(config["dx"], "m", location="lower right")
     axs[0, 0].add_artist(scalebar)
 
     im01 = axs[0, 1].imshow(M)
     axs[0, 1].set_title("Pupil mask")
     fig.colorbar(im01, ax=axs[0, 1])
-    scalebar = ScaleBar(dx, "m", location="lower right")
+    scalebar = ScaleBar(config["dx"], "m", location="lower right")
     axs[0, 1].add_artist(scalebar)
 
     im10 = axs[1, 0].imshow(I_center, cmap="gray")
     axs[1, 0].set_title(r"$\theta = 0^\circ$")
     fig.colorbar(im10, ax=axs[1, 0])
-    scalebar = ScaleBar(dx, "m", location="lower right")
+    scalebar = ScaleBar(config["dx"], "m", location="lower right")
     axs[1, 0].add_artist(scalebar)
 
     im11 = axs[1, 1].imshow(I_shift, cmap="gray")
     axs[1, 1].set_title(rf"$\theta = {theta_max:.2e}^\circ$")
     fig.colorbar(im11, ax=axs[1, 1])
-    scalebar = ScaleBar(dx, "m", location="lower right")
+    scalebar = ScaleBar(config["dx"], "m", location="lower right")
     axs[1, 1].add_artist(scalebar)
 
     plt.show()
