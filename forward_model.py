@@ -1,5 +1,6 @@
 from torch.fft import fft2, ifft2, fftshift, ifftshift
 import torch
+import matplotlib.pyplot as plt
 
 
 def F(x):
@@ -38,4 +39,14 @@ def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict):
     spectrum = F(field)
     filtered = spectrum * config["M"]
     image = torch.abs(iF(filtered)) ** 2
+
+    # fig, axs = plt.subplots(1, 3)
+    # axs[0].imshow(field.detach().numpy().astype(float), cmap='gray')
+    # axs[0].set_title("field")
+    # axs[1].imshow(spectrum.detach().numpy().astype(float), cmap='gray')
+    # axs[1].set_title("spectrum")
+    # axs[2].imshow(filtered.detach().numpy().astype(float), cmap='gray')
+    # axs[2].set_title("filtered")
+    # plt.show()
+
     return image
