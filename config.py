@@ -19,9 +19,11 @@ FPM_CONFIG = {
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
-    "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab
+    "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
     "NA_obj": 0.1,
     "NA_illum": 0.39715,
+    "object_distance": 90.88 * mm, # distance between LED array and sample
+    "LED_spacing": 4 * mm,  # distance between LEDs
 }
 
 # Long-range imaging configuration
