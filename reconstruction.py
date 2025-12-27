@@ -102,6 +102,7 @@ if __name__ == "__main__" and isSim:
     sim_config = setup_config(sample, FPM_CONFIG)
 
     theta_max = np.rad2deg(np.arcsin(config["NA_illum"]))
+    theta_max = np.rad2deg(np.arcsin(sim_config["NA_illum"]))
     print(f"Max rotation (deg) {theta_max:.2e}")
     theta = torch.linspace(-theta_max, theta_max, 10)
     theta_y, theta_x = torch.meshgrid(theta, theta, indexing="ij")
@@ -132,7 +133,18 @@ elif __name__ == "__main__" and not isSim:
     if remove24:
         samples = samples[24:,:,:] # filter out bright field images
 
+    #
+    # for slide in range(int(np.ceil(samples_np.shape[2]/40))):
+    #     for i in range(40):
+    #         if i+slide*40 > samples_np.shape[2]-1:
+    #             break
+    #         plt.subplot(5,8,i+1)
+    #         plt.title('raw image '+str(i+slide*40+1))
+    #         plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+    #         plt.axis('off')
+    #     plt.show()
 
+<<<<<<< HEAD
     if showObservations:
         for slide in range(int(np.ceil(samples_np.shape[0]/40))):
             for i in range(40):
@@ -145,18 +157,50 @@ elif __name__ == "__main__" and not isSim:
             plt.show()
 
     real_config = setup_config_real(samples[0,:,:], UCONN_CONFIG)
+||||||| d934090
+    for slide in range(int(np.ceil(samples_np.shape[2]/40))):
+        for i in range(40):
+            if i+slide*40 > samples_np.shape[2]-1:
+                break
+            plt.subplot(5,8,i+1)
+            plt.title('raw image '+str(i+slide*40+1))
+            plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+            plt.axis('off')
+        plt.show()
+
+=======
+    real_config = setup_config_real(samples[0,:,:], UCONN_CONFIG)
+>>>>>>> refs/remotes/origin/main
     # load LED locations
     LED_raw = scipy.io.loadmat(LED_dir)
     print(LED_raw.keys())
     xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
     print(xlocation.shape, ylocation.shape)
+<<<<<<< HEAD
     positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
     # Theta = LED_angles(positions, real_config) # TODO should use this
     Theta = positions
     # print(f"Theta: {Theta}")
+||||||| d934090
+    Theta = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
+=======
+    Theta = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
+    xlocation = torch.rad2deg(torch.atan((xlocation * real_config['LED_spacing']) / real_config['object_distance']))
+>>>>>>> refs/remotes/origin/main
     if remove24:
         Theta = Theta[24:,:] # filter out bright field angles
+<<<<<<< HEAD
     print(f"Samples shape: {samples.shape} Theta shape: {Theta.shape}")
+||||||| d934090
+    print(f"Theta shape: {Theta.shape}")
+    # print(f"Theta: {Theta}")
+
+    config = setup_config_real(samples[0,:,:], UCONN_CONFIG)
+=======
+    print(f"Theta shape: {Theta.shape}")
+    # print(f"Theta: {Theta}")
+
+>>>>>>> refs/remotes/origin/main
 
     # visualize a few real observations
     fig, axs = plt.subplots(1, 3)
