@@ -13,7 +13,6 @@ epochs = 25
 data_name = 'USAF_red'
 remove24 = False # remove bright field images
 
-def iterative_reconstruction_sim(gt_sample, Theta, num_epochs):
 def iterative_reconstruction_sim(gt_sample, Theta, num_epochs, config):
     # Init guesses
     dc = forward_model(gt_sample, torch.tensor([0, 0]), config)
@@ -43,7 +42,6 @@ def iterative_reconstruction_sim(gt_sample, Theta, num_epochs, config):
             optimizer.zero_grad()
     return sample
 
-def iterative_reconstruction_real(observations, Theta, num_epochs):
 def iterative_reconstruction_real(observations, Theta, num_epochs, config):
     # Init guesses
     N = observations.shape[0]
@@ -53,7 +51,6 @@ def iterative_reconstruction_real(observations, Theta, num_epochs, config):
     # dc_amplitude = torch.tensor(np.sqrt(dc), dtype=torch.float32) 
     # sample = torch.nn.Parameter(dc_amplitude.to(torch.complex64))
     sample = torch.nn.Parameter(torch.tensor(dc)) # acculumated estimate from no angle
-    optimizer = torch.optim.Adam([sample], lr=1e-2)
     optimizer = torch.optim.Adam([sample], lr=1e-3)
 
     # need angle per measurement to reconstruct
@@ -100,7 +97,6 @@ if __name__ == "__main__" and isSim:
     sample = sample / 255.0  # normalize
     sample = torch.from_numpy(sample)
 
-    config = setup_config(sample, FPM_CONFIG)
     sim_config = setup_config(sample, FPM_CONFIG)
 
     theta_max = np.rad2deg(np.arcsin(config["NA_illum"]))
@@ -111,11 +107,9 @@ if __name__ == "__main__" and isSim:
     Theta = torch.stack([theta_y, theta_x], dim=-1).reshape(-1, 2)
     print(f"Theta: {Theta}")
 
-    pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs)
     pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs, config=sim_config)
 
     fig, axs = plt.subplots(1, 3)
-    axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), config))
     axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), sim_config))
     axs[0].set_title("Measurement")
     axs[1].imshow(pred.detach().cpu())
@@ -137,21 +131,21 @@ elif __name__ == "__main__" and not isSim:
     if remove24:
         samples = samples[24:,:,:] # filter out bright field images
 
+    #
+    # for slide in range(int(np.ceil(samples_np.shape[2]/40))):
+    #     for i in range(40):
+    #         if i+slide*40 > samples_np.shape[2]-1:
+    #             break
+    #         plt.subplot(5,8,i+1)
+    #         plt.title('raw image '+str(i+slide*40+1))
+    #         plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+    #         plt.axis('off')
+    #     plt.show()
 
-    for slide in range(int(np.ceil(samples_np.shape[2]/40))):
-        for i in range(40):
-            if i+slide*40 > samples_np.shape[2]-1:
-                break
-            plt.subplot(5,8,i+1)
-            plt.title('raw image '+str(i+slide*40+1))
-            plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
-            plt.axis('off')
-        plt.show()
-
+    real_config = setup_config_real(samples[0,:,:], UCONN_CONFIG)
     # load LED locations
     LED_raw = scipy.io.loadmat(LED_dir)
     print(LED_raw.keys())
-    xlocation, ylocation = torch.from_numpy(LED_raw['xlocation'].astype(float)), torch.from_numpy(LED_raw['ylocation'].astype(float))
     xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
     print(xlocation.shape, ylocation.shape)
     Theta = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
@@ -161,7 +155,6 @@ elif __name__ == "__main__" and not isSim:
     print(f"Theta shape: {Theta.shape}")
     # print(f"Theta: {Theta}")
 
-    config = setup_config_real(samples[0,:,:], UCONN_CONFIG)
 
     # visualize a few real observations
     fig, axs = plt.subplots(1, 3)
@@ -179,7 +172,6 @@ elif __name__ == "__main__" and not isSim:
     # theta_y, theta_x = torch.meshgrid(theta, theta, indexing="ij")
     # Theta = torch.stack([theta_y, theta_x], dim=-1).reshape(-1, 2)
 
-    pred = iterative_reconstruction_real(samples, Theta, num_epochs=epochs)
     pred = iterative_reconstruction_real(samples, Theta, num_epochs=epochs, config=real_config)
 
     fig, axs = plt.subplots(1, 2)
