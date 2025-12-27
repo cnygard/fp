@@ -37,11 +37,6 @@ WALLER_CONFIG = {
     "NA_obj": 0.1,
     "LED_dist": 4 * mm,
     "object_distance": 67.5 * mm, 
-||||||| d934090
-=======
-    "object_distance": 90.88 * mm, # distance between LED array and sample
-    "LED_spacing": 4 * mm,  # distance between LEDs
->>>>>>> refs/remotes/origin/main
 }
 
 # Long-range imaging configuration
