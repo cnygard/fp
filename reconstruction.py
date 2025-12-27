@@ -14,6 +14,7 @@ data_name = 'USAF_red'
 remove24 = False # remove bright field images
 
 def iterative_reconstruction_sim(gt_sample, Theta, num_epochs):
+def iterative_reconstruction_sim(gt_sample, Theta, num_epochs, config):
     # Init guesses
     dc = forward_model(gt_sample, torch.tensor([0, 0]), config)
     sample = torch.nn.Parameter(dc)
@@ -43,6 +44,7 @@ def iterative_reconstruction_sim(gt_sample, Theta, num_epochs):
     return sample
 
 def iterative_reconstruction_real(observations, Theta, num_epochs):
+def iterative_reconstruction_real(observations, Theta, num_epochs, config):
     # Init guesses
     N = observations.shape[0]
     num_angles = Theta.shape[0]
@@ -52,6 +54,7 @@ def iterative_reconstruction_real(observations, Theta, num_epochs):
     # sample = torch.nn.Parameter(dc_amplitude.to(torch.complex64))
     sample = torch.nn.Parameter(torch.tensor(dc)) # acculumated estimate from no angle
     optimizer = torch.optim.Adam([sample], lr=1e-2)
+    optimizer = torch.optim.Adam([sample], lr=1e-3)
 
     # need angle per measurement to reconstruct
     # call forward model on sample, image = forward(sample, angle of current observation)
@@ -98,8 +101,10 @@ if __name__ == "__main__" and isSim:
     sample = torch.from_numpy(sample)
 
     config = setup_config(sample, FPM_CONFIG)
+    sim_config = setup_config(sample, FPM_CONFIG)
 
     theta_max = np.rad2deg(np.arcsin(config["NA_illum"]))
+    theta_max = np.rad2deg(np.arcsin(sim_config["NA_illum"]))
     print(f"Max rotation (deg) {theta_max:.2e}")
     theta = torch.linspace(-theta_max, theta_max, 10)
     theta_y, theta_x = torch.meshgrid(theta, theta, indexing="ij")
@@ -107,9 +112,11 @@ if __name__ == "__main__" and isSim:
     print(f"Theta: {Theta}")
 
     pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs)
+    pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs, config=sim_config)
 
     fig, axs = plt.subplots(1, 3)
     axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), config))
+    axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), sim_config))
     axs[0].set_title("Measurement")
     axs[1].imshow(pred.detach().cpu())
     axs[1].set_title("FP Reconstruction")
@@ -145,8 +152,10 @@ elif __name__ == "__main__" and not isSim:
     LED_raw = scipy.io.loadmat(LED_dir)
     print(LED_raw.keys())
     xlocation, ylocation = torch.from_numpy(LED_raw['xlocation'].astype(float)), torch.from_numpy(LED_raw['ylocation'].astype(float))
+    xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
     print(xlocation.shape, ylocation.shape)
     Theta = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
+    xlocation = torch.rad2deg(torch.atan((xlocation * real_config['LED_spacing']) / real_config['object_distance']))
     if remove24:
         Theta = Theta[24:,:] # filter out bright field angles
     print(f"Theta shape: {Theta.shape}")
@@ -171,6 +180,7 @@ elif __name__ == "__main__" and not isSim:
     # Theta = torch.stack([theta_y, theta_x], dim=-1).reshape(-1, 2)
 
     pred = iterative_reconstruction_real(samples, Theta, num_epochs=epochs)
+    pred = iterative_reconstruction_real(samples, Theta, num_epochs=epochs, config=real_config)
 
     fig, axs = plt.subplots(1, 2)
     axs[0].imshow(samples[0,:,:], cmap='gray')
