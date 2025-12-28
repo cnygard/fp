@@ -11,7 +11,8 @@ def iF(x):
     return ifft2(ifftshift(x))
 
 
-def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict, targ: torch.Tensor):
+def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict,
+                  targ: torch.Tensor = 0, showAngles: bool = False):
     """Applies Fourier ptychography forward imaging model.
 
     Args:
@@ -23,6 +24,7 @@ def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict, targ:
         Intensity measurement at the image plane.
     """
     theta_rad = torch.deg2rad(theta)
+    # theta_rad = theta
 
     # === Compute lateral wavevector shift ===
     E_illum = torch.exp(
@@ -33,6 +35,9 @@ def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict, targ:
             + torch.sin(theta_rad[1]) * config["Y_m"]
         )
     )  # tilted plane wave
+    if showAngles:
+        plt.imshow(torch.real(E_illum))
+        plt.show()
     # import pdb; pdb.set_trace()
 
     # === Simulate FPM measurement ===
@@ -43,24 +48,25 @@ def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict, targ:
     filtered = filtered.detach().numpy().astype(float) > 0.01
     spectrum = spectrum.detach().numpy().astype(float) > 0.01
 
-    # fig, axs = plt.subplots(3, 2)
-    # axs[0,0].imshow(field.detach().numpy().astype(float), cmap='gray')
-    # axs[0,0].set_title("field")
-    # # axs[0,1].imshow(spectrum.detach().numpy().astype(float), cmap='gray')
-    # axs[0,1].imshow(spectrum, cmap='gray')
-    # axs[0,1].set_title("spectrum")
-    # # axs[1,0].imshow(filtered.detach().numpy().astype(float), cmap='gray')
-    # axs[1,0].imshow(filtered, cmap='gray')
-    # axs[1,0].set_title("filtered")
-    # axs[1,1].imshow(image.detach().numpy().astype(float), cmap='gray')
-    # axs[1,1].set_title("image")
-    #
-    # axs[2,0].imshow(targ.detach().numpy().astype(float), cmap='gray')
-    # axs[2,0].set_title("target")
-    # targF = F(targ).detach().numpy().astype(float) > 0.01
-    # axs[2,1].imshow(targF, cmap='gray')
-    # axs[2,1].set_title("target")
+    if False:
+        fig, axs = plt.subplots(3, 2)
+        fig.set_size_inches(8, 8, forward=True)
+        axs[0,0].imshow(field.detach().numpy().astype(float), cmap='gray')
+        axs[0,0].set_title("field")
+        # axs[0,1].imshow(spectrum.detach().numpy().astype(float), cmap='gray')
+        axs[0,1].imshow(spectrum, cmap='gray')
+        axs[0,1].set_title("spectrum")
+        # axs[1,0].imshow(filtered.detach().numpy().astype(float), cmap='gray')
+        axs[1,0].imshow(filtered, cmap='gray')
+        axs[1,0].set_title("filtered")
+        axs[1,1].imshow(image.detach().numpy().astype(float), cmap='gray')
+        axs[1,1].set_title("image")
 
-    plt.show()
+        axs[2,0].imshow(targ.detach().numpy().astype(float), cmap='gray')
+        axs[2,0].set_title("target")
+        targSpectrum = F(targ).detach().numpy().astype(float) > 0.01
+        axs[2,1].imshow(targSpectrum, cmap='gray')
+        axs[2,1].set_title("target spectrum")
+        plt.show()
 
     return image

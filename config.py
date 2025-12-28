@@ -24,10 +24,7 @@ UCONN_CONFIG = {
     "NA_obj": 0.1,
     "NA_illum": 0.39715,
     "LED_spacing": 4 * mm,  # distance between LEDs
-    "object_distance": 90.88 * mm,
-    "NA_obj": 0.1,
-    "NA_illum": 0.39715,
-    "LED_spacing": 4 * mm,  # distance between LEDs
+    # "LED_spacing": 4,  # Use this if calculating refraction
     "object_distance": 90.88 * mm,
 }
 
@@ -96,6 +93,10 @@ def setup_config_real(sample: torch.Tensor, base_config: dict):
     print("Object width", config["dx"] * config["N"])
     config["wavelength"] = 630 * nm  # wavelength
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
+
+    config["upsample"] = 4 # ratio to scale output image
+    config["out_dx"] = config["upsample"] / config["dx"] # pixel size in output
+    config["out_N"] = config["N"] * config["upsample"] # width of output image
 
     # === Define pupil mask (circular aperture) ===
     NA_obj = config["NA_obj"]
