@@ -62,6 +62,10 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config["wavelength"] = 532 * nm  # wavelength
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
+    config["upsample"] = 4 # ratio to scale output image
+    config["out_dx"] = config["upsample"] / config["dx"] # pixel size in output
+    config["out_N"] = config["N"] * config["upsample"] # width of output image
+
     # === Define pupil mask (circular aperture) ===
     NA_obj = config["aperture_diameter"] / (2 * config["object_distance"])
     print(f"Objective NA {NA_obj:.2e}")

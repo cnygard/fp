@@ -8,7 +8,7 @@ import cv2
 from tqdm import tqdm
 from config import *
 
-isSim = False
+isSim = True
 epochs = 25
 # data_name = 'MouseKidney_green'
 data_name = 'USAF_red'
@@ -92,6 +92,74 @@ def F(x):
 def iF(x):
     return np.fft.ifft2(np.fft.ifftshift(x))
 
+def cj_reconstruction_sim(gt_sample, Theta, num_epochs, config):
+    num_angles = Theta.shape[0]
+    
+    print(f"Number of angles: {num_angles}")
+    # guess = np.zeros((observations.shape[1], observations.shape[2]))
+    # guess = np.copy(observations[0,:,:])
+    guess = np.copy(gt_sample)
+    guess = cv2.resize(guess,
+                       (guess.shape[0] * config['upsample'],
+                        guess.shape[1] * config['upsample']))
+    guessFT = F(guess)
+    kx = config['k'] * Theta[:,0]
+    ky = config['k'] * Theta[:,1]
+    dkx = 2*np.pi/(config['dx']*config['N'])
+    dky = 2*np.pi/(config['dx']*config['N'])
+
+    region = np.copy(guessFT)
+    # region = np.zeros(guessFT.shape)
+
+    cv2.imwrite(f'../CJsim/before.jpg',
+                np.log(np.real(region)) * 255)
+
+    # need angle per measurement to reconstruct
+    # call replace-angle on sample
+    prog_bar = tqdm(range(num_epochs))
+    first = True
+    for _ in prog_bar:
+        for i in range(num_angles):
+            # image = sample # reproject current estimate to same angle as this observation
+            output_center = config['out_N'] // 2
+            # find bounds of where in guess to replace
+            r_centerX = int(np.round(output_center - kx[i].item() / dkx))
+            r_centerY = int(np.round(output_center - ky[i].item() / dky))
+            r_lowX = r_centerX - config['N']//2
+            r_lowY = r_centerY - config['N']//2
+            r_highX = r_centerX + config['N']//2
+            r_highY = r_centerY + config['N']//2
+            r = guessFT[r_lowY:r_highY, r_lowX:r_highX]
+            r_masked = r * config['M'].detach().cpu().numpy()
+            low_res_guess = iF(r_masked)
+            measurement = config['upsample']**2 * gt_sample
+            low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
+            low_res_guess_FT = F(low_res_guess)
+            guessFT[r_lowY:r_highY,r_lowX:r_highX] =     \
+                guessFT[r_lowY:r_highY,r_lowX:r_highX] + \
+                config['M'].detach().cpu().numpy() *     \
+                (low_res_guess_FT - r_masked)
+            if False and first:
+                region[r_lowY:r_highY,r_lowX:r_highX] =     \
+                    region[r_lowY:r_highY,r_lowX:r_highX] + \
+                    config['M'].detach().cpu().numpy() *    \
+                    (low_res_guess_FT - r_masked)
+                # guess = iF(guessFT)
+                # fig, axs = plt.subplots(1, 3)
+                # fig.set_size_inches(16, 8, forward=True)
+                # axs[0].imshow(np.real(iF(r_masked)), cmap='gray')
+                # axs[0].set_title("Measurement")
+                # axs[1].imshow(np.real(guess), cmap='gray')
+                # axs[1].set_title("Guess")
+                # axs[2].imshow(np.log(np.real(region)), cmap='gray')
+                # axs[2].set_title("Guess Spectrum")
+                # plt.subplots_adjust(left=0.02, right=0.98, top=1, bottom=0)
+                # plt.show()
+                cv2.imwrite(f'../CJsim/spectrum_reconstruction_{i}.jpg',
+                            np.log(np.real(region)) * 255)
+        first = False
+    return iF(guessFT)
+
 def cj_reconstruction_real(observations, Theta, num_epochs, config):
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
@@ -109,8 +177,11 @@ def cj_reconstruction_real(observations, Theta, num_epochs, config):
     dkx = 2*np.pi/(config['dx']*config['N'])
     dky = 2*np.pi/(config['dx']*config['N'])
 
-    # region = np.copy(guessFT)
-    region = np.zeros(guessFT.shape)
+    region = np.copy(guessFT)
+    # region = np.zeros(guessFT.shape)
+
+    cv2.imwrite(f'../CJ/before.jpg',
+                np.log(np.real(region)) * 255)
 
     # need angle per measurement to reconstruct
     # call replace-angle on sample
@@ -144,19 +215,19 @@ def cj_reconstruction_real(observations, Theta, num_epochs, config):
                     region[r_lowY:r_highY,r_lowX:r_highX] + \
                     config['M'].detach().cpu().numpy() *    \
                     (low_res_guess_FT - r_masked)
-                guess = iF(guessFT)
-                fig, axs = plt.subplots(1, 3)
-                fig.set_size_inches(16, 8, forward=True)
-                axs[0].imshow(observations[i,:,:], cmap='gray')
-                axs[0].set_title("Measurement")
-                axs[1].imshow(np.real(guess), cmap='gray')
-                axs[1].set_title("Guess")
-                axs[2].imshow(np.log(np.real(region)), cmap='gray')
-                axs[2].set_title("Guess Spectrum")
-                plt.subplots_adjust(left=0.02, right=0.98, top=1, bottom=0)
-                plt.show()
-                # cv2.imwrite(f'../CJ/spectrum_reconstruction_{i}.jpg',
-                #             np.log(np.real(region)) * 255)
+                # guess = iF(guessFT)
+                # fig, axs = plt.subplots(1, 3)
+                # fig.set_size_inches(16, 8, forward=True)
+                # axs[0].imshow(observations[i,:,:], cmap='gray')
+                # axs[0].set_title("Measurement")
+                # axs[1].imshow(np.real(guess), cmap='gray')
+                # axs[1].set_title("Guess")
+                # axs[2].imshow(np.log(np.real(region)), cmap='gray')
+                # axs[2].set_title("Guess Spectrum")
+                # plt.subplots_adjust(left=0.02, right=0.98, top=1, bottom=0)
+                # plt.show()
+                cv2.imwrite(f'../CJ/spectrum_reconstruction_{i}.jpg',
+                            np.log(np.real(region)) * 255)
         first = False
     return iF(guessFT)
 
@@ -171,8 +242,8 @@ if __name__ == "__main__" and isSim:
     # === Load and preprocess image ===
     sample = cv2.imread("./Data/usaf.jpg", 0).astype(np.float32)
     sample = cv2.resize(sample, (256, 256))
-    sample = sample / 255.0  # normalize
-    sample = torch.from_numpy(sample)
+    sample_np = sample / 255.0  # normalize
+    sample = torch.from_numpy(sample_np)
     # region = F(sample)
     # cv2.imwrite(f'../real.jpg', np.log(np.real(region)) * 255.0)
 
@@ -186,16 +257,32 @@ if __name__ == "__main__" and isSim:
     Theta = torch.stack([theta_y, theta_x], dim=-1).reshape(-1, 2)
     print(f"Theta: {Theta}")
 
-    pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs, config=sim_config)
-
-    fig, axs = plt.subplots(1, 3)
-    axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), sim_config))
-    axs[0].set_title("Measurement")
-    axs[1].imshow(pred.detach().cpu())
-    axs[1].set_title("FP Reconstruction")
-    axs[2].imshow(sample)
-    axs[2].set_title("GT")
-    plt.show()
+    if cj:
+        Theta = torch.deg2rad(Theta)
+        pred = cj_reconstruction_sim(sample_np, Theta,
+                                      num_epochs=epochs,
+                                      config=sim_config)
+        print(f'Sample shape {sample.shape}, Result shape {pred.shape}')
+        fig, axs = plt.subplots(1, 3)
+        fig.set_size_inches(16, 8, forward=True)
+        axs[0].imshow(sample, cmap='gray')
+        axs[0].set_title("Ground Truth")
+        axs[1].imshow(np.abs(pred.astype('float')), cmap='gray')
+        axs[1].set_title("Amplitude")
+        axs[2].imshow(np.angle(pred.astype('float')), cmap='gray')
+        axs[2].set_title("Phase")
+        plt.subplots_adjust(left=0.02, right=0.98, top=1, bottom=0)
+        plt.show()
+    else:
+        pred = iterative_reconstruction_sim(sample, Theta, num_epochs=epochs, config=sim_config)
+        fig, axs = plt.subplots(1, 3)
+        axs[0].imshow(forward_model(sample, torch.tensor([0, 0]), sim_config))
+        axs[0].set_title("Measurement")
+        axs[1].imshow(pred.detach().cpu())
+        axs[1].set_title("FP Reconstruction")
+        axs[2].imshow(sample)
+        axs[2].set_title("GT")
+        plt.show()
 elif __name__ == "__main__" and not isSim:
     # === Load and preprocess image ===
     data_dir = 'Data/'+data_name
