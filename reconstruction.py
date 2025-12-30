@@ -9,7 +9,6 @@ from tqdm import tqdm
 from config import *
 import ml_reconstruction
 import matlab_reconstruction
-import util
 
 isSim = False
 epochs = 25
@@ -69,13 +68,13 @@ if __name__ == "__main__" and isSim:
         img1 = 'Ground Truth', sample
         img2 = 'Amplitude', np.abs(pred.astype('float'))
         img3 = 'Phase', np.angle(pred.astype('float'))
-        util.debug_print(img1,img2,img3)
+        debug_print(img1,img2,img3)
     else:
         pred = ml_reconstruction.sim(sample, Theta, num_epochs=epochs, config=sim_config)
         img1 = 'Measurement', forward_model(sample, torch.tensor([0, 0]), sim_config)
         img2 = 'FP Reconstruction', pred.detach().cpu()
         img3 = 'GT', sample
-        util.debug_print(img1,img2,img3)
+        debug_print(img1,img2,img3)
 elif __name__ == "__main__" and not isSim:
     # === Load and preprocess image ===
     data_dir = 'Data/'+data_name
@@ -120,7 +119,7 @@ elif __name__ == "__main__" and not isSim:
     # img1 = 'Measurement 0', samples[0,:,:]
     # img2 = 'Measurement 100', samples[100,:,:]
     # img3 = 'Measurement 200', samples[200,:,:]
-    # util.debug_print(img1,img2,img3)
+    # debug_print(img1,img2,img3)
 
     if cj:
         pred = matlab_reconstruction.real(samples_np, Theta,
@@ -130,11 +129,11 @@ elif __name__ == "__main__" and not isSim:
         img1 = 'First Measurement', samples[0,:,:]
         img2 = 'Amplitude', np.abs(pred.astype('float'))
         img3 = 'Phase', np.angle(pred.astype('float'))
-        util.debug_print(img1,img2,img3)
+        debug_print(img1,img2,img3)
     else:
         pred = ml_reconstruction.real(samples, Theta, num_epochs=epochs, config=real_config)
         print(f'Samples shape {samples[0,:,:].shape}, Result shape {pred.shape}')
         img1 = 'First Measurement', samples[0,:,:]
         img2 = 'FP Reconstruction', pred.detach().cpu().numpy().astype('float')
         # img3 = 'GT', sample
-        util.debug_print(img1,img2)
+        debug_print(img1,img2)

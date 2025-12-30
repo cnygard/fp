@@ -3,7 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
-import util
+from util import *
 
 debug = False
 
@@ -19,7 +19,7 @@ def reconstruction(observations, Theta, num_epochs, config):
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
                         guess.shape[1] * config['upsample']))
-    guessFT = util.F(guess)
+    guessFT = F(guess)
 
     # debug view
     # region = np.copy(guessFT)
@@ -37,10 +37,10 @@ def reconstruction(observations, Theta, num_epochs, config):
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
             r_masked = r * config['M'].detach().cpu().numpy()
-            low_res_guess = util.iF(r_masked)
+            low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
             low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
-            low_res_guess_FT = util.F(low_res_guess)
+            low_res_guess_FT = F(low_res_guess)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
                 config['M'].detach().cpu().numpy() *     \
@@ -54,13 +54,13 @@ def reconstruction(observations, Theta, num_epochs, config):
                     region[ly:hy,lx:hx] + \
                     config['M'].detach().cpu().numpy() *    \
                     (low_res_guess_FT - r_masked)
-                guess = util.iF(guessFT)
+                guess = iF(guessFT)
                 img1 = 'Measurement', observations[i,:,:]
                 img2 = 'Guess', np.real(guess)
                 img3 = 'Guess Spectrum', np.log(np.real(region))
-                util.debug_print(img1, img2, img3)
+                debug_print(img1, img2, img3)
         first = False
-    return util.iF(guessFT)
+    return iF(guessFT)
 
 def sim(gt_sample, Theta, num_epochs, config):
     num_samples = Theta.shape[0]
@@ -76,12 +76,12 @@ def real(observations, Theta, num_epochs, config):
 
 def find_bounds(x,y,dx,dy,config):
     center_of_output = (config['out_N']+1) / 2
-    centerX = util.matlab_round(center_of_output - x / dx)
-    centerY = util.matlab_round(center_of_output - y / dy)
-    lowX  = util.matlab_round(centerX - (config['N']-1)/2)
-    lowY  = util.matlab_round(centerY - (config['N']-1)/2)
-    highX = util.matlab_round(centerX + (config['N']-1)/2) + 1
-    highY = util.matlab_round(centerY + (config['N']-1)/2) + 1
+    centerX = matlab_round(center_of_output - x / dx)
+    centerY = matlab_round(center_of_output - y / dy)
+    lowX  = matlab_round(centerX - (config['N']-1)/2)
+    lowY  = matlab_round(centerY - (config['N']-1)/2)
+    highX = matlab_round(centerX + (config['N']-1)/2) + 1
+    highY = matlab_round(centerY + (config['N']-1)/2) + 1
     return lowX, lowY, highX, highY
 
 def kspace_parameterize(Theta, config):
