@@ -11,7 +11,7 @@ import ml_reconstruction
 import matlab_reconstruction
 
 isSim = False
-epochs = 25
+epochs = 2
 # data_name = 'MouseKidney_green'
 data_name = 'USAF_red'
 remove24 = False # remove bright field images

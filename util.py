@@ -1,9 +1,10 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
 
 # input variadic tuples of name,image
-def debug_print(*imgs):
+def debug_print(*imgs, save: bool=False):
     max_width = 3
     num_imgs = len(imgs)
     num_rows = int(np.ceil(num_imgs / max_width))
@@ -20,10 +21,11 @@ def debug_print(*imgs):
         else:
             axs[col].imshow(img, cmap='gray')
             axs[col].set_title(name)
+        if save:
+            cv2.imwrite(f'../fpm_debug/{name}.jpg',
+                        img * 255)
     plt.subplots_adjust(left=0.02, right=0.98, top=0.9, bottom=0.1)
     plt.show()
-    # cv2.imwrite(f'../CJ/spectrum_reconstruction_{i}.jpg',
-    #             np.log(np.real(region)) * 255)
 
 def matlab_round(x):
     if x >= 0:

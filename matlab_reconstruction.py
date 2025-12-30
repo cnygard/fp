@@ -12,10 +12,11 @@ def reconstruction(observations, Theta, num_epochs, config):
     num_angles = Theta.shape[0]
     
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
+
     # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[0,:,:])
-
     guess = np.sum(observations, axis=0)
+
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
                         guess.shape[1] * config['upsample']))
@@ -26,6 +27,8 @@ def reconstruction(observations, Theta, num_epochs, config):
     region = np.zeros(guessFT.shape)
 
     kx,ky,dkx,dky = kspace_parameterize(Theta, config)
+    
+    mask = config['M'].detach().cpu().numpy()
 
     # need angle per measurement to reconstruct
     # call replace-angle on sample
@@ -36,29 +39,33 @@ def reconstruction(observations, Theta, num_epochs, config):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
-            r_masked = r * config['M'].detach().cpu().numpy()
+            r_masked = r * mask
             low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
             low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
             low_res_guess_FT = F(low_res_guess)
+
+            normalMask = np.conj(mask)/np.max(np.max((np.abs(mask))**2))
+            newInfo = (low_res_guess_FT - r_masked)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
-                config['M'].detach().cpu().numpy() *     \
-                (low_res_guess_FT - r_masked)
+                normalMask *           \
+                newInfo
 
-            if debug and first:
-                toBeChanged = region[ly:hy,lx:hx]
-                toBeAdded = config['M'].detach().cpu().numpy() * \
-                            (low_res_guess_FT - r_masked)
+            # if debug and first:
+            if debug:
                 region[ly:hy,lx:hx] =     \
                     region[ly:hy,lx:hx] + \
-                    config['M'].detach().cpu().numpy() *    \
-                    (low_res_guess_FT - r_masked)
+                    normalMask *          \
+                    newInfo
                 guess = iF(guessFT)
-                img1 = 'Measurement', observations[i,:,:]
-                img2 = 'Guess', np.real(guess)
-                img3 = 'Guess Spectrum', np.log(np.real(region))
-                debug_print(img1, img2, img3)
+                img1 = f'{prog_bar.n:03}_{i:03}_Measurement', observations[i,:,:]
+                img2 = f'{prog_bar.n:03}_{i:03}_Guess', np.real(guess)
+                img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.log(np.real(region))
+                img4 = f'{prog_bar.n:03}_{i:03}_Mask', normalMask
+                img5 = f'{prog_bar.n:03}_{i:03}_New', np.log(np.real(newInfo))
+                img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.log(np.real(normalMask * newInfo))
+                debug_print(img1,img2,img3,img4,img5,img6,save=False)
         first = False
     return iF(guessFT)
 
