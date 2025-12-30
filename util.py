@@ -1,4 +1,41 @@
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
+
+# input variadic tuples of name,image
+def debug_print(*imgs):
+    max_width = 3
+    num_imgs = len(imgs)
+    num_rows = int(np.ceil(num_imgs / max_width))
+    num_cols = min(num_imgs, max_width)
+    fig, axs = plt.subplots(num_rows, num_cols)
+    fig.set_size_inches(16, 8, forward=True)
+    for i in range(num_imgs):
+        col = i % max_width
+        row = i // max_width
+        name,img = imgs[i]
+        if num_rows > 1:
+            axs[row,col].imshow(img, cmap='gray')
+            axs[row,col].set_title(name)
+        else:
+            axs[col].imshow(img, cmap='gray')
+            axs[col].set_title(name)
+    plt.subplots_adjust(left=0.02, right=0.98, top=0.9, bottom=0.1)
+    plt.show()
+    # cv2.imwrite(f'../CJ/spectrum_reconstruction_{i}.jpg',
+    #             np.log(np.real(region)) * 255)
+
+def matlab_round(x):
+    if x >= 0:
+        return int(np.floor(x + 0.5))
+    else:
+        return int(np.ceil(x - 0.5))
+
+def F(x):
+    return np.fft.fftshift(np.fft.fft2(x))
+
+def iF(x):
+    return np.fft.ifft2(np.fft.ifftshift(x))
 
 def LED_angles(positions: torch.Tensor, config: dict):
     # TODO: these should be parameters in the config
@@ -35,7 +72,7 @@ def LED_angles(positions: torch.Tensor, config: dict):
         angles[led,0] = -NAt*torch.cos(thetal)
         angles[led,1] = -NAt*torch.sin(thetal)
 
-        # # === Angle without refraction === CURRENT BEST
+        # # === Angle without refraction ===
         # tanX = x0 / config['object_distance']
         # tanY = y0 / config['object_distance']
         # tans = torch.tensor([tanX, tanY])
