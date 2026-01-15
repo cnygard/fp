@@ -6,8 +6,16 @@ from tqdm import tqdm
 from util import *
 
 debug = False
+onlyMiddle = True
+filterNorm = 0.07
 
 def reconstruction(observations, Theta, num_epochs, config):
+    if onlyMiddle:
+        middle_inds = torch.argwhere(torch.norm(Theta, dim=1) < filterNorm)
+        # print(middle_inds)
+        observations = observations[middle_inds.flatten(),:,:]
+        Theta = Theta[middle_inds.flatten(),:]
+
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
     
