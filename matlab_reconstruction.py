@@ -46,7 +46,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     # need angle per measurement to reconstruct
     # call replace-angle on sample
-    prog_bar = tqdm(range(num_epochs))
+    prog_bar = tqdm(range(2))
     first = True
     for _ in prog_bar:
         for i in range(num_samples):
@@ -59,7 +59,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
             low_res_guess_FT = F(low_res_guess)
 
-            normalMask = np.conj(mask)/np.max(np.max((np.abs(mask))**2))
+            normalMask = np.conj(mask)/np.max((np.abs(mask))**2)
             newInfo = (low_res_guess_FT - r_masked)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
@@ -88,6 +88,64 @@ def reconstruction(observations, Theta, num_epochs, config):
                 debug_print(img1,img2,img3,img4,img5,img6,save=False)
                 debug_print(img7,img1,img2,save=False)
         first = False
+    
+    # momentum
+    countimg = 0
+    tt = np.ones(num_epochs * num_samples)
+
+    m, n = guessFT.shape
+    vobj0 = np.zeros((m, n))
+    vp0 = np.zeros_like(observations[0,:,:])
+    ObjT = np.copy(guessFT)
+    PT = np.copy(mask)
+
+    gamma_obj = 1 # hardcoded all these since Matlab did too
+    alpha = 1
+    beta = 1
+    T = 1
+    eta_obj = 0.2 # is what Matlab uses
+    eta_p = 0.2 # ^
+
+    prog_bar = tqdm(range(num_epochs))
+    for epoch in prog_bar:
+        for i in range(num_samples):
+            countimg += 1
+            lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
+            r = guessFT[ly:hy, lx:hx]
+            r_masked = r * mask
+            low_res_guess = iF(r_masked)
+
+            tt[i + (epoch * num_samples)] = (np.mean(np.abs(low_res_guess))) / (np.mean(config['upsample']**2 * np.abs(observations[i,:,:])))
+            if epoch > 1:
+                observations[i,:,:] = observations[i,:,:] * tt[i + (epoch * num_samples)]
+
+            measurement = config['upsample']**2 * observations[i,:,:]
+            low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
+            low_res_guess_FT = F(low_res_guess)
+
+            normalMask = (np.conj(mask) * gamma_obj)/((1 - alpha) * np.abs(mask)**2 + alpha * np.max((np.abs(mask))**2))
+            newInfo = (low_res_guess_FT - r_masked)
+            guessFT[ly:hy,lx:hx] =     \
+                guessFT[ly:hy,lx:hx] + \
+                learningScalar *       \
+                normalMask *           \
+                newInfo
+            normalR = (np.conj(r) * gamma_obj)/((1 - beta) * np.abs(r)**2 + beta * np.max((np.abs(r))**2)) # does r change?
+            mask = mask + (newInfo * gamma_obj * normalR) # add learning scalar?
+
+            if countimg == T: # momentum method
+                vobj = eta_obj * vobj0 + (guessFT - ObjT)
+                guessFT = ObjT + vobj
+                vobj0 = vobj
+                ObjT = np.copy(guessFT)
+
+                vp = eta_p * vp0 + (mask - PT)
+                mask = PT + vp
+                vp0 = vp
+                PT = np.copy(mask)
+
+                countimg = 0
+
     return iF(guessFT)
 
 def sim(gt_sample, Theta, num_epochs, config):
