@@ -11,9 +11,9 @@ import ml_reconstruction
 import matlab_reconstruction
 
 isSim = False
-epochs = 2
-# data_name = 'MouseKidney_green'
-data_name = 'USAF_red'
+epochs = 10
+data_name = 'MouseKidney_green'
+# data_name = 'USAF_red'
 remove24 = False # remove bright field images
 showObservations = False
 cj = True # use CJ's reconstruction from Matlab code
@@ -66,8 +66,8 @@ if __name__ == "__main__" and isSim:
                                       config=sim_config)
         print(f'Sample shape {sample.shape}, Result shape {pred.shape}')
         img1 = 'Ground Truth', sample
-        img2 = 'Amplitude', np.abs(pred.astype('float'))
-        img3 = 'Phase', np.angle(pred.astype('float'))
+        img2 = 'Amplitude', np.abs(pred)
+        img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)
     else:
         pred = ml_reconstruction.sim(sample, Theta, num_epochs=epochs, config=sim_config)
@@ -127,8 +127,8 @@ elif __name__ == "__main__" and not isSim:
                                       config=real_config)
         print(f'Samples shape {samples[0,:,:].shape}, Result shape {pred.shape}')
         img1 = 'First Measurement', samples[0,:,:]
-        img2 = 'Amplitude', np.abs(pred.astype('float'))
-        img3 = 'Phase', np.angle(pred.astype('float'))
+        img2 = 'Amplitude', np.abs(pred)
+        img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)
     else:
         pred = ml_reconstruction.real(samples, Theta, num_epochs=epochs, config=real_config)

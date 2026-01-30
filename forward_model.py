@@ -48,7 +48,7 @@ def forward_model(sample: torch.Tensor, theta: torch.Tensor, config: dict,
     filtered = filtered.detach().numpy().astype(float) > 0.01
     spectrum = spectrum.detach().numpy().astype(float) > 0.01
 
-    if False:
+    if True:
         fig, axs = plt.subplots(3, 2)
         fig.set_size_inches(8, 8, forward=True)
         axs[0,0].imshow(field.detach().numpy().astype(float), cmap='gray')

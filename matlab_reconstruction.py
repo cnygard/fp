@@ -5,9 +5,10 @@ import cv2
 from tqdm import tqdm
 from util import *
 
-debug = False
-onlyMiddle = True
-filterNorm = 0.07
+debug = True
+onlyMiddle = False
+filterNorm = 0.25
+learningScalar = 1
 
 def reconstruction(observations, Theta, num_epochs, config):
     if onlyMiddle:
@@ -37,6 +38,11 @@ def reconstruction(observations, Theta, num_epochs, config):
     kx,ky,dkx,dky = kspace_parameterize(Theta, config)
     
     mask = config['M'].detach().cpu().numpy()
+    mask = np.where(mask, 1.0, 0.0)
+    blursize = 45
+    mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
+    # plt.imshow(mask,cmap='gray')
+    # plt.show()
 
     # need angle per measurement to reconstruct
     # call replace-angle on sample
@@ -57,14 +63,19 @@ def reconstruction(observations, Theta, num_epochs, config):
             newInfo = (low_res_guess_FT - r_masked)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
+                learningScalar *       \
                 normalMask *           \
                 newInfo
 
             # if debug and first:
-            if debug:
+            if False:
                 region[ly:hy,lx:hx] =     \
                     region[ly:hy,lx:hx] + \
                     normalMask *          \
+                    newInfo
+                black = np.zeros(region.shape)
+                black[ly:hy,lx:hx] =     \
+                    normalMask *         \
                     newInfo
                 guess = iF(guessFT)
                 img1 = f'{prog_bar.n:03}_{i:03}_Measurement', observations[i,:,:]
@@ -73,7 +84,9 @@ def reconstruction(observations, Theta, num_epochs, config):
                 img4 = f'{prog_bar.n:03}_{i:03}_Mask', normalMask
                 img5 = f'{prog_bar.n:03}_{i:03}_New', np.log(np.real(newInfo))
                 img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.log(np.real(normalMask * newInfo))
+                img7 = f'black', np.log(np.real(iF(black)))
                 debug_print(img1,img2,img3,img4,img5,img6,save=False)
+                debug_print(img7,img1,img2,save=False)
         first = False
     return iF(guessFT)
 
