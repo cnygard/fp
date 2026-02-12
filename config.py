@@ -8,14 +8,29 @@ mm = 1e-3
 um = 1e-6
 nm = 1e-9
 
+# # Microscopy configuration
+# FPM_CONFIG = {
+#     "title": "Microscopy",
+#     "dx": 1.12 * um,
+#     # "NA_obj": 0.1,
+#     "NA_obj": 0.04986,
+#     "NA_illum": 0.04986 * 4,
+#     "LED_spacing": 3.45 * mm,  # Use this if calculating refraction
+#     "aperture_diameter": 5.76 * mm,
+#     "object_distance": 57.71 * mm,
+# }
+
 # Microscopy configuration
 FPM_CONFIG = {
-    "title": "Microscopy",
-    "dx": 0.5 * um,
-    "aperture_diameter": 8 * mm,
-    "object_distance": 4 * cm,
-    "NA_illum": 0.3,
+    "title": "Waller Claim Microscopy",
+    "dx": 870 * nm,
+    "NA_obj": 0.15,
+    "NA_illum": 0.4,
+    "LED_spacing": 3.45,  # Use this if calculating refraction
+    "aperture_diameter": 5.76 * mm,
+    "object_distance": 57.71 * mm,
 }
+
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
@@ -59,8 +74,9 @@ def setup_config(sample: torch.Tensor, base_config: dict):
 
     config["N"] = sample.shape[0]  # assume square image
     print("Object width", config["dx"] * config["N"])
-    # config["wavelength"] = 532 * nm  # wavelength
-    config["wavelength"] = 630 * nm  # wavelength
+    # config["wavelength"] = 475 * nm  # blue wavelength
+    # config["wavelength"] = 532 * nm  # green wavelength
+    config["wavelength"] = 630 * nm  # red wavelength
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
     config["upsample"] = 4 # ratio to scale output image

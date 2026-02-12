@@ -11,9 +11,17 @@ import ml_reconstruction
 import matlab_reconstruction
 
 isSim = False
-epochs = 10
-data_name = 'MouseKidney_green'
-# data_name = 'USAF_red'
+epochs = 2
+ourImages = True
+if ourImages:
+    data_name = 'Pumpkin'
+    data_name = 'Heart'
+    data_name = 'Stupid'
+    data_name = 'Intestine'
+    data_name = 'Crevice'
+else:
+    data_name = 'MouseKidney_green'
+    data_name = 'USAF_red'
 remove24 = False # remove bright field images
 showObservations = False
 cj = True # use CJ's reconstruction from Matlab code
@@ -76,44 +84,95 @@ if __name__ == "__main__" and isSim:
         img3 = 'GT', sample
         debug_print(img1,img2,img3)
 elif __name__ == "__main__" and not isSim:
-    # === Load and preprocess image ===
     data_dir = 'Data/'+data_name
     LED_dir = 'Data/'+data_name+'_LED_locations'
-    observations_raw = scipy.io.loadmat(data_dir)['imlow_HDR'].transpose(2,0,1) # first index is now image index
+    if ourImages:
+        N = 256
+        size = 616 // 2
+        observations_raw = np.empty((N,size,size))
+        for i in range(N):
+            # img = cv2.imread(f'{data_dir}/test{i:03d}.jpg')/255.0 # read as BGR
+            raw = np.load(f'{data_dir}/{i:03d}.npy')
+            red = raw[0::2, 0::2]
+            img = (red >> 2).astype(np.uint8)/255.0
+            if img.shape[0] != img.shape[1]:
+                # left = int((np.max(img[:,:,0].shape) - np.min(img[:,:,0].shape)) / 2)
+                # right = left + np.min(img[:,:,0].shape)
+                # observations_raw[i,:,:] = img[:,left:right,1] # green
+                left = int((np.max(img.shape) - np.min(img.shape)) / 2)
+                right = left + np.min(img.shape)
+                observations_raw[i,:,:] = cv2.resize(img[:,left:right],
+                                                     (size,size))
+            else:
+                observations_raw[i,:,:] = img
+                # observations_raw[i,:,:] = img[:,:,1] # green
 
-    # === Setup observations ===
-    N = observations_raw.shape[0]
-    size = observations_raw.shape[1]
-    samples_np = np.zeros((N, size, size), dtype=np.float32)
-    for i in range(N):
-        samples_np[i,:,:] = cv2.resize(observations_raw[i,:,:], (size, size)) / 255.0
-    samples = torch.from_numpy(samples_np)
-    if remove24:
-        samples = samples[24:,:,:] # filter out bright field images
+        size = observations_raw.shape[1]
+        samples_np = observations_raw
 
-    if showObservations:
-        for slide in range(int(np.ceil(samples_np.shape[0]/40))):
-            for i in range(40):
-                if i+slide*40 > samples_np.shape[0]-1:
-                    break
-                plt.subplot(5,8,i+1)
-                plt.title('raw image '+str(i+slide*40+1))
-                plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
-                plt.axis('off')
-            plt.show()
+        real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
 
-    real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
+        width = np.sqrt(N)
+        center = 7
+        location = np.arange(width)
+        xlocation = location - center
+        ylocation = xlocation
+        x,y = np.meshgrid(xlocation, ylocation, indexing='xy')
+        positions = np.stack([y,x], axis=-1).reshape(-1,2)
+        Theta = LED_angles(torch.from_numpy(positions), real_config)
+        print(f"Samples shape: {samples_np.shape} Theta shape: {Theta.shape}")
+        order = spiral((7,7),16)
+        Theta = rearrange(Theta, order)
+        # print(Theta)
+        # import pdb;pdb.set_trace()
+        # samples_np = rearrange(samples_np, order)
+        if False:
+            for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+                for i in range(40):
+                    if i+slide*40 > samples_np.shape[0]-1:
+                        break
+                    plt.subplot(5,8,i+1)
+                    plt.title('raw image '+str(order[i+slide*40]))
+                    plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                    plt.axis('off')
+                plt.show()
+    else:
+        # === Load and preprocess image ===
+        observations_raw = scipy.io.loadmat(data_dir)['imlow_HDR'].transpose(2,0,1) # first index is now image index
 
-    # === Load LED locations ===
-    LED_raw = scipy.io.loadmat(LED_dir)
-    print(LED_raw.keys())
-    xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
-    print(xlocation.shape, ylocation.shape)
-    positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
-    Theta = LED_angles(positions, real_config)
-    if remove24:
-        Theta = Theta[24:,:] # filter out bright field angles
-    print(f"Samples shape: {samples.shape} Theta shape: {Theta.shape}")
+        # === Setup observations ===
+        N = observations_raw.shape[0]
+        size = observations_raw.shape[1]
+        samples_np = np.zeros((N, size, size), dtype=np.float32)
+        for i in range(N):
+            samples_np[i,:,:] = cv2.resize(observations_raw[i,:,:], (size, size)) / 255.0
+        samples = torch.from_numpy(samples_np)
+        if remove24:
+            samples = samples[24:,:,:] # filter out bright field images
+
+        if showObservations:
+            for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+                for i in range(40):
+                    if i+slide*40 > samples_np.shape[0]-1:
+                        break
+                    plt.subplot(5,8,i+1)
+                    plt.title('raw image '+str(i+slide*40+1))
+                    plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                    plt.axis('off')
+                plt.show()
+
+        real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
+
+        # === Load LED locations ===
+        LED_raw = scipy.io.loadmat(LED_dir)
+        print(LED_raw.keys())
+        xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
+        print(xlocation.shape, ylocation.shape)
+        positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
+        Theta = LED_angles(positions, real_config)
+        if remove24:
+            Theta = Theta[24:,:] # filter out bright field angles
+        print(f"Samples shape: {samples.shape} Theta shape: {Theta.shape}")
 
     # # visualize a few real observations
     # img1 = 'Measurement 0', samples[0,:,:]
@@ -123,10 +182,11 @@ elif __name__ == "__main__" and not isSim:
 
     if cj:
         pred = matlab_reconstruction.real(samples_np, Theta,
-                                      num_epochs=epochs,
-                                      config=real_config)
-        print(f'Samples shape {samples[0,:,:].shape}, Result shape {pred.shape}')
-        img1 = 'First Measurement', samples[0,:,:]
+                                          num_epochs=epochs,
+                                          config=real_config)
+        print(np.max(np.abs(pred)))
+        print(f'Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}')
+        img1 = 'First Measurement', samples_np[0,:,:]
         img2 = 'Amplitude', np.abs(pred)
         img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)

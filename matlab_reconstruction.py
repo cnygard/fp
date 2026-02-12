@@ -5,7 +5,7 @@ import cv2
 from tqdm import tqdm
 from util import *
 
-debug = True
+debug = False
 onlyMiddle = False
 filterNorm = 0.25
 learningScalar = 1
@@ -24,7 +24,12 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[0,:,:])
-    guess = np.sum(observations, axis=0)
+    # guess = np.sum(observations, axis=0) / observations.shape[0]
+    guess = np.sum(observations[0:25,:,:], axis=0)
+    
+    print(guess.shape)
+    plt.imshow(guess,cmap='gray')
+    plt.show()
 
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
@@ -40,7 +45,7 @@ def reconstruction(observations, Theta, num_epochs, config):
     mask = config['M'].detach().cpu().numpy()
     mask = np.where(mask, 1.0, 0.0)
     blursize = 45
-    mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
+    # mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
     # plt.imshow(mask,cmap='gray')
     # plt.show()
 
@@ -67,8 +72,7 @@ def reconstruction(observations, Theta, num_epochs, config):
                 normalMask *           \
                 newInfo
 
-            # if debug and first:
-            if False:
+            if debug and first:
                 region[ly:hy,lx:hx] =     \
                     region[ly:hy,lx:hx] + \
                     normalMask *          \
@@ -86,7 +90,7 @@ def reconstruction(observations, Theta, num_epochs, config):
                 img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.log(np.real(normalMask * newInfo))
                 img7 = f'black', np.log(np.real(iF(black)))
                 debug_print(img1,img2,img3,img4,img5,img6,save=False)
-                debug_print(img7,img1,img2,save=False)
+                # debug_print(img7,img1,img2,save=False)
         first = False
     
     # momentum
@@ -145,7 +149,6 @@ def reconstruction(observations, Theta, num_epochs, config):
                 PT = np.copy(mask)
 
                 countimg = 0
-
     return iF(guessFT)
 
 def sim(gt_sample, Theta, num_epochs, config):
