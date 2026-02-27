@@ -11,7 +11,7 @@ import ml_reconstruction
 import matlab_reconstruction
 
 isSim = False
-epochs = 2
+epochs = 10
 ourImages = True
 if ourImages:
     data_name = 'Pumpkin'
@@ -21,7 +21,7 @@ if ourImages:
     data_name = 'Crevice'
 else:
     data_name = 'MouseKidney_green'
-    data_name = 'USAF_red'
+    # data_name = 'USAF_red'
 remove24 = False # remove bright field images
 showObservations = False
 cj = True # use CJ's reconstruction from Matlab code
@@ -88,14 +88,22 @@ elif __name__ == "__main__" and not isSim:
     LED_dir = 'Data/'+data_name+'_LED_locations'
     if ourImages:
         N = 256
-        size = 616 // 2
+        # size = 616 // 2
+        size = 250
         observations_raw = np.empty((N,size,size))
+        left,right,top,bottom = 225,475,175,425
         for i in range(N):
             # img = cv2.imread(f'{data_dir}/test{i:03d}.jpg')/255.0 # read as BGR
             raw = np.load(f'{data_dir}/{i:03d}.npy')
-            red = raw[0::2, 0::2]
-            img = (red >> 2).astype(np.uint8)/255.0
-            if img.shape[0] != img.shape[1]:
+            # red = raw[0::2, 0::2]
+            # img = (red >> 2).astype(np.uint8)/255.0
+            G1 = raw[0::2, 1::2]
+            G2 = raw[1::2, 0::2]
+            G = ((G1.astype(np.uint32) + G2.astype(np.uint32)) // 2).astype(np.uint16)
+            img = (G >> 2).astype(np.uint8)
+            if True:
+                observations_raw[i,:,:] = np.sqrt(img[top:bottom,left:right])
+            elif img.shape[0] != img.shape[1]:
                 # left = int((np.max(img[:,:,0].shape) - np.min(img[:,:,0].shape)) / 2)
                 # right = left + np.min(img[:,:,0].shape)
                 # observations_raw[i,:,:] = img[:,left:right,1] # green

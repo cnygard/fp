@@ -22,8 +22,8 @@ nm = 1e-9
 
 # Microscopy configuration
 FPM_CONFIG = {
-    "title": "Waller Claim Microscopy",
-    "dx": 870 * nm,
+    "title": "UMD Microscopy",
+    "dx": 0.6611 * um,
     "NA_obj": 0.15,
     "NA_illum": 0.4,
     "LED_spacing": 3.45,  # Use this if calculating refraction

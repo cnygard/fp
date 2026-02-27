@@ -28,8 +28,8 @@ def reconstruction(observations, Theta, num_epochs, config):
     guess = np.sum(observations[0:25,:,:], axis=0)
     
     print(guess.shape)
-    plt.imshow(guess,cmap='gray')
-    plt.show()
+    # plt.imshow(guess,cmap='gray')
+    # plt.show()
 
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
