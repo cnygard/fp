@@ -5,10 +5,10 @@ import cv2
 from tqdm import tqdm
 from util import *
 
-debug = False
+debug = True
 onlyMiddle = False
 filterNorm = 0.25
-learningScalar = 1
+learningScalar = 0.01
 
 def reconstruction(observations, Theta, num_epochs, config):
     if onlyMiddle:
@@ -24,8 +24,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[0,:,:])
-    # guess = np.sum(observations, axis=0) / observations.shape[0]
-    guess = np.sum(observations[0:25,:,:], axis=0)
+    guess = np.sum(observations, axis=0) / observations.shape[0]
     
     print(guess.shape)
     # plt.imshow(guess,cmap='gray')

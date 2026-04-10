@@ -12,19 +12,179 @@ import matlab_reconstruction
 
 isSim = False
 epochs = 10
-ourImages = True
-if ourImages:
+
+# data_source = 'umd'
+data_source = 'matlab'
+# data_source = 'waller'
+
+if data_source == 'umd':
     data_name = 'Pumpkin'
     data_name = 'Heart'
     data_name = 'Stupid'
     data_name = 'Intestine'
     data_name = 'Crevice'
-else:
+elif data_source == 'matlab':
     data_name = 'MouseKidney_green'
-    # data_name = 'USAF_red'
+    data_name = 'USAF_red'
+elif data_source == 'waller':
+    data_name = 'Waller'
+    data_name = 'Waller-Full'
+
 remove24 = False # remove bright field images
 showObservations = False
 cj = True # use CJ's reconstruction from Matlab code
+
+def load_umd_images(data_dir):
+    N = 256
+    # size = 616 // 2
+    size = 250
+    observations_raw = np.empty((N,size,size))
+    left,right,top,bottom = 225,475,175,425
+    for i in range(N):
+        # img = cv2.imread(f'{data_dir}/test{i:03d}.jpg')/255.0 # read as BGR
+        raw = np.load(f'{data_dir}/{i:03d}.npy')
+        # red = raw[0::2, 0::2]
+        # img = (red >> 2).astype(np.uint8)/255.0
+        G1 = raw[0::2, 1::2]
+        G2 = raw[1::2, 0::2]
+        G = ((G1.astype(np.uint32) + G2.astype(np.uint32)) // 2).astype(np.uint16)
+        img = (G >> 2).astype(np.uint8)
+        if True:
+            observations_raw[i,:,:] = np.sqrt(img[top:bottom,left:right])
+        elif img.shape[0] != img.shape[1]:
+            # left = int((np.max(img[:,:,0].shape) - np.min(img[:,:,0].shape)) / 2)
+            # right = left + np.min(img[:,:,0].shape)
+            # observations_raw[i,:,:] = img[:,left:right,1] # green
+            left = int((np.max(img.shape) - np.min(img.shape)) / 2)
+            right = left + np.min(img.shape)
+            observations_raw[i,:,:] = cv2.resize(img[:,left:right],
+                                                 (size,size))
+        else:
+            observations_raw[i,:,:] = img
+            # observations_raw[i,:,:] = img[:,:,1] # green
+
+    size = observations_raw.shape[1]
+    samples_np = observations_raw
+
+    real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
+
+    width = np.sqrt(N)
+    center = 7
+    location = np.arange(width)
+    xlocation = location - center
+    ylocation = xlocation
+    x,y = np.meshgrid(xlocation, ylocation, indexing='xy')
+    positions = np.stack([y,x], axis=-1).reshape(-1,2)
+    Theta = LED_angles(torch.from_numpy(positions), real_config)
+    print(f"Samples shape: {samples_np.shape} Theta shape: {Theta.shape}")
+    order = spiral((center,center),16)
+    Theta = rearrange(Theta, order)
+    # print(Theta)
+    # import pdb;pdb.set_trace()
+    # samples_np = rearrange(samples_np, order)
+    if False:
+        for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+            for i in range(40):
+                if i+slide*40 > samples_np.shape[0]-1:
+                    break
+                plt.subplot(5,8,i+1)
+                plt.title('raw image '+str(order[i+slide*40]))
+                plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                plt.axis('off')
+            plt.show()
+    return samples_np, Theta, real_config
+
+def load_matlab_images(data_dir):
+    # === Load and preprocess image ===
+    observations_raw = scipy.io.loadmat(data_dir)['imlow_HDR'].transpose(2,0,1) # first index is now image index
+
+    # === Setup observations ===
+    N = observations_raw.shape[0]
+    size = observations_raw.shape[1]
+    samples_np = np.zeros((N, size, size), dtype=np.float32)
+    for i in range(N):
+        samples_np[i,:,:] = cv2.resize(observations_raw[i,:,:], (size, size)) / 255.0
+    samples = torch.from_numpy(samples_np)
+    if remove24:
+        samples = samples[24:,:,:] # filter out bright field images
+
+    if showObservations:
+        for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+            for i in range(40):
+                if i+slide*40 > samples_np.shape[0]-1:
+                    break
+                plt.subplot(5,8,i+1)
+                plt.title('raw image '+str(i+slide*40+1))
+                plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                plt.axis('off')
+            plt.show()
+
+    real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
+
+    # === Load LED locations ===
+    LED_raw = scipy.io.loadmat(LED_dir)
+    print(LED_raw.keys())
+    xlocation, ylocation = (torch.from_numpy(LED_raw['xlocation_s'].astype(float)),
+                            torch.from_numpy(LED_raw['ylocation_s'].astype(float)))
+    print(xlocation.shape, ylocation.shape)
+    positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
+    Theta = LED_angles(positions, real_config)
+    if remove24:
+        Theta = Theta[24:,:] # filter out bright field angles
+    print(f"Samples shape: {samples.shape} Theta shape: {Theta.shape}")
+    return samples_np, Theta, real_config
+
+def load_waller_images(data_dir):
+    N = 25
+    # size = 616 // 2
+    size = 256
+    observations_raw = np.empty((N,size,size))
+    for i in range(N):
+        print(f'{data_dir}/{i:03d}.tif')
+        img = cv2.imread(f'{data_dir}/{i:03d}.tif')/255.0 # read as BGR
+        color = 2 # red
+        if img.shape[0] != img.shape[1]:
+            left = int((np.max(img[:,:,color].shape) - np.min(img[:,:,color].shape)) / 2)
+            right = left + np.min(img[:,:,color].shape)
+            observations_raw[i,:,:] = cv2.resize(img[:,left:right,color],
+                                                 (size,size))
+        else:
+            # observations_raw[i,:,:] = img
+            observations_raw[i,:,:] = img[:,:,color]
+
+    size = observations_raw.shape[1]
+    samples_np = observations_raw
+
+    real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
+
+    width = np.sqrt(N)
+    center = 2
+    location = np.arange(width)
+    xlocation = location - center
+    ylocation = xlocation
+    x,y = np.meshgrid(xlocation, ylocation, indexing='xy')
+    positions = np.stack([y,x], axis=-1).reshape(-1,2)
+    Theta = LED_angles(torch.from_numpy(positions), real_config)
+    print(f"Samples shape: {samples_np.shape} Theta shape: {Theta.shape}")
+    order = spiral((center,center),5)
+    Theta = rearrange(Theta, order) * -1.0
+    samples_np = rearrange(samples_np, order)
+    print(positions)
+    print(rearrange(positions, order))
+    print(Theta)
+    # import pdb;pdb.set_trace()
+    # samples_np = rearrange(samples_np, order)
+    if True:
+        for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+            for i in range(40):
+                if i+slide*40 > samples_np.shape[0]-1:
+                    break
+                plt.subplot(5,8,i+1)
+                plt.title('raw image '+str(order[i+slide*40]))
+                plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                plt.axis('off')
+            plt.show()
+    return samples_np, Theta, real_config
 
 print(f"isSim: {isSim}")
 if __name__ == "__main__" and isSim:
@@ -86,101 +246,12 @@ if __name__ == "__main__" and isSim:
 elif __name__ == "__main__" and not isSim:
     data_dir = 'Data/'+data_name
     LED_dir = 'Data/'+data_name+'_LED_locations'
-    if ourImages:
-        N = 256
-        # size = 616 // 2
-        size = 250
-        observations_raw = np.empty((N,size,size))
-        left,right,top,bottom = 225,475,175,425
-        for i in range(N):
-            # img = cv2.imread(f'{data_dir}/test{i:03d}.jpg')/255.0 # read as BGR
-            raw = np.load(f'{data_dir}/{i:03d}.npy')
-            # red = raw[0::2, 0::2]
-            # img = (red >> 2).astype(np.uint8)/255.0
-            G1 = raw[0::2, 1::2]
-            G2 = raw[1::2, 0::2]
-            G = ((G1.astype(np.uint32) + G2.astype(np.uint32)) // 2).astype(np.uint16)
-            img = (G >> 2).astype(np.uint8)
-            if True:
-                observations_raw[i,:,:] = np.sqrt(img[top:bottom,left:right])
-            elif img.shape[0] != img.shape[1]:
-                # left = int((np.max(img[:,:,0].shape) - np.min(img[:,:,0].shape)) / 2)
-                # right = left + np.min(img[:,:,0].shape)
-                # observations_raw[i,:,:] = img[:,left:right,1] # green
-                left = int((np.max(img.shape) - np.min(img.shape)) / 2)
-                right = left + np.min(img.shape)
-                observations_raw[i,:,:] = cv2.resize(img[:,left:right],
-                                                     (size,size))
-            else:
-                observations_raw[i,:,:] = img
-                # observations_raw[i,:,:] = img[:,:,1] # green
-
-        size = observations_raw.shape[1]
-        samples_np = observations_raw
-
-        real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
-
-        width = np.sqrt(N)
-        center = 7
-        location = np.arange(width)
-        xlocation = location - center
-        ylocation = xlocation
-        x,y = np.meshgrid(xlocation, ylocation, indexing='xy')
-        positions = np.stack([y,x], axis=-1).reshape(-1,2)
-        Theta = LED_angles(torch.from_numpy(positions), real_config)
-        print(f"Samples shape: {samples_np.shape} Theta shape: {Theta.shape}")
-        order = spiral((7,7),16)
-        Theta = rearrange(Theta, order)
-        # print(Theta)
-        # import pdb;pdb.set_trace()
-        # samples_np = rearrange(samples_np, order)
-        if False:
-            for slide in range(int(np.ceil(samples_np.shape[0]/40))):
-                for i in range(40):
-                    if i+slide*40 > samples_np.shape[0]-1:
-                        break
-                    plt.subplot(5,8,i+1)
-                    plt.title('raw image '+str(order[i+slide*40]))
-                    plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
-                    plt.axis('off')
-                plt.show()
-    else:
-        # === Load and preprocess image ===
-        observations_raw = scipy.io.loadmat(data_dir)['imlow_HDR'].transpose(2,0,1) # first index is now image index
-
-        # === Setup observations ===
-        N = observations_raw.shape[0]
-        size = observations_raw.shape[1]
-        samples_np = np.zeros((N, size, size), dtype=np.float32)
-        for i in range(N):
-            samples_np[i,:,:] = cv2.resize(observations_raw[i,:,:], (size, size)) / 255.0
-        samples = torch.from_numpy(samples_np)
-        if remove24:
-            samples = samples[24:,:,:] # filter out bright field images
-
-        if showObservations:
-            for slide in range(int(np.ceil(samples_np.shape[0]/40))):
-                for i in range(40):
-                    if i+slide*40 > samples_np.shape[0]-1:
-                        break
-                    plt.subplot(5,8,i+1)
-                    plt.title('raw image '+str(i+slide*40+1))
-                    plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
-                    plt.axis('off')
-                plt.show()
-
-        real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
-
-        # === Load LED locations ===
-        LED_raw = scipy.io.loadmat(LED_dir)
-        print(LED_raw.keys())
-        xlocation, ylocation = torch.from_numpy(LED_raw['xlocation_s'].astype(float)), torch.from_numpy(LED_raw['ylocation_s'].astype(float))
-        print(xlocation.shape, ylocation.shape)
-        positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
-        Theta = LED_angles(positions, real_config)
-        if remove24:
-            Theta = Theta[24:,:] # filter out bright field angles
-        print(f"Samples shape: {samples.shape} Theta shape: {Theta.shape}")
+    if data_source == 'umd':
+        samples_np, Theta, real_config = load_umd_images(data_dir)
+    elif data_source == 'matlab':
+        samples_np, Theta, real_config = load_matlab_images(data_dir)
+    elif data_source == 'waller':
+        samples_np, Theta, real_config = load_waller_images(data_dir)
 
     # # visualize a few real observations
     # img1 = 'Measurement 0', samples[0,:,:]
@@ -189,7 +260,10 @@ elif __name__ == "__main__" and not isSim:
     # debug_print(img1,img2,img3)
 
     if cj:
-        pred = matlab_reconstruction.real(samples_np, Theta,
+        luh = [0, 1, 5, 10, 18, 27, 39, 52, 68, 85, 105, 126, 150, 175, 203]
+        luh = [0, 1, 5, 10, 18]
+        pred = matlab_reconstruction.real(samples_np[luh],
+                                          Theta[luh],
                                           num_epochs=epochs,
                                           config=real_config)
         print(np.max(np.abs(pred)))
@@ -205,3 +279,4 @@ elif __name__ == "__main__" and not isSim:
         img2 = 'FP Reconstruction', pred.detach().cpu().numpy().astype('float')
         # img3 = 'GT', sample
         debug_print(img1,img2)
+
