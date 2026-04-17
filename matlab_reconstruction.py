@@ -5,7 +5,7 @@ import cv2
 from tqdm import tqdm
 from util import *
 
-debug = True
+debug = False
 onlyMiddle = False
 filterNorm = 0.25
 learningScalar = 0.01
@@ -39,8 +39,14 @@ def reconstruction(observations, Theta, num_epochs, config):
     # region = np.copy(guessFT)
     region = np.zeros(guessFT.shape)
 
-    kx,ky,dkx,dky = kspace_parameterize(Theta, config)
-    
+    if config['title'] == 'UMD Bench Microscopy':
+        kx = Theta[:,0]
+        ky = Theta[:,1]
+        dkx = 1
+        dky = 1
+    else:
+        kx,ky,dkx,dky = kspace_parameterize(Theta, config)
+
     mask = config['M'].detach().cpu().numpy()
     mask = np.where(mask, 1.0, 0.0)
     blursize = 45
@@ -148,6 +154,10 @@ def reconstruction(observations, Theta, num_epochs, config):
                 PT = np.copy(mask)
 
                 countimg = 0
+        img1 = f'Best_Sample', observations[7]
+        img2 = f'Amplitude', np.abs(iF(guessFT))
+        img3 = f'Phase', np.angle(iF(guessFT))
+        # debug_print(img1,img2,img3,save=False)
     return iF(guessFT)
 
 def sim(gt_sample, Theta, num_epochs, config):

@@ -13,16 +13,21 @@ import matlab_reconstruction
 isSim = False
 epochs = 10
 
-# data_source = 'umd'
-data_source = 'matlab'
+# data_source = 'umd_pi'
+data_source = 'umd_bench'
+# data_source = 'matlab'
 # data_source = 'waller'
 
-if data_source == 'umd':
+if data_source == 'umd_pi':
     data_name = 'Pumpkin'
     data_name = 'Heart'
     data_name = 'Stupid'
     data_name = 'Intestine'
     data_name = 'Crevice'
+elif data_source == 'umd_bench':
+    data_name = 'usaf_15_every20'
+    data_name = 'usaf_15_every10'
+    data_name = 'usaf_11_wide_slit'
 elif data_source == 'matlab':
     data_name = 'MouseKidney_green'
     data_name = 'USAF_red'
@@ -34,7 +39,7 @@ remove24 = False # remove bright field images
 showObservations = False
 cj = True # use CJ's reconstruction from Matlab code
 
-def load_umd_images(data_dir):
+def load_umd_pi_images(data_dir):
     N = 256
     # size = 616 // 2
     size = 250
@@ -93,6 +98,54 @@ def load_umd_images(data_dir):
                 plt.axis('off')
             plt.show()
     return samples_np, Theta, real_config
+
+def load_umd_bench_images(data_dir):
+    N = 11
+    size = 1080
+    observations_raw = np.empty((N,size,size))
+    for i in range(N):
+        print(f'{data_dir}/{i:04d}.jpg')
+        img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
+        if img.shape[0] != img.shape[1]:
+            left = int((np.max(img.shape) - np.min(img.shape)) / 2)
+            right = left + np.min(img.shape)
+            observations_raw[i,:,:] = cv2.resize(img[:,left:right],
+                                                 (size,size))
+        else:
+            # observations_raw[i,:,:] = img
+            observations_raw[i,:,:] = img
+
+    size = observations_raw.shape[1]
+    samples_np = observations_raw
+
+    real_config = setup_config(samples_np[0,:,:], UMD_BENCH_CONFIG)
+
+    width = N
+    center = width // 2
+    location = np.arange(width)
+    xlocation = location - center
+    ylocation = np.zeros_like(xlocation)
+    positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
+    # shift = positions * 8
+    shift = positions * 2
+    # Theta = LED_angles(torch.from_numpy(positions), real_config)
+    # print(f"Samples shape: {samples_np.shape} Theta shape: {Theta.shape}")
+    # order = spiral((center,center),15)
+    # Theta = rearrange(Theta, order)
+    # print(Theta)
+    # import pdb;pdb.set_trace()
+    # samples_np = rearrange(samples_np, order)
+    if False:
+        for slide in range(int(np.ceil(samples_np.shape[0]/40))):
+            for i in range(40):
+                if i+slide*40 > samples_np.shape[0]-1:
+                    break
+                plt.subplot(5,8,i+1)
+                plt.title('raw image '+str(order[i+slide*40]))
+                plt.imshow(samples_np[i+slide*40,:,:],cmap='gray')
+                plt.axis('off')
+            plt.show()
+    return samples_np, shift, real_config
 
 def load_matlab_images(data_dir):
     # === Load and preprocess image ===
@@ -246,8 +299,10 @@ if __name__ == "__main__" and isSim:
 elif __name__ == "__main__" and not isSim:
     data_dir = 'Data/'+data_name
     LED_dir = 'Data/'+data_name+'_LED_locations'
-    if data_source == 'umd':
-        samples_np, Theta, real_config = load_umd_images(data_dir)
+    if data_source == 'umd_pi':
+        samples_np, Theta, real_config = load_umd_pi_images(data_dir)
+    elif data_source == 'umd_bench':
+        samples_np, Theta, real_config = load_umd_bench_images(data_dir)
     elif data_source == 'matlab':
         samples_np, Theta, real_config = load_matlab_images(data_dir)
     elif data_source == 'waller':
@@ -260,15 +315,16 @@ elif __name__ == "__main__" and not isSim:
     # debug_print(img1,img2,img3)
 
     if cj:
-        luh = [0, 1, 5, 10, 18, 27, 39, 52, 68, 85, 105, 126, 150, 175, 203]
-        luh = [0, 1, 5, 10, 18]
-        pred = matlab_reconstruction.real(samples_np[luh],
-                                          Theta[luh],
+        # luh = [0, 1, 5, 10, 18, 27, 39, 52, 68, 85, 105, 126, 150, 175, 203]
+        # luh = [0, 1, 5, 10, 18]
+        # print(Theta[luh])
+        pred = matlab_reconstruction.real(samples_np,
+                                          Theta,
                                           num_epochs=epochs,
                                           config=real_config)
         print(np.max(np.abs(pred)))
         print(f'Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}')
-        img1 = 'First Measurement', samples_np[0,:,:]
+        img1 = 'First Measurement', samples_np[6,:,:]
         img2 = 'Amplitude', np.abs(pred)
         img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)

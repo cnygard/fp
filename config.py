@@ -22,7 +22,7 @@ nm = 1e-9
 
 # Microscopy configuration
 FPM_CONFIG = {
-    "title": "UMD Microscopy",
+    "title": "UMD Pi Microscopy",
     "dx": 0.6611 * um,
     "NA_obj": 0.15,
     "NA_illum": 0.4,
@@ -31,6 +31,16 @@ FPM_CONFIG = {
     "object_distance": 57.71 * mm,
 }
 
+UMD_BENCH_CONFIG = {
+    "title": "UMD Bench Microscopy",
+    # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
+    "dx": 1.845 * um,
+    "NA_obj": 0.1,
+    "NA_illum": 0.39715,
+    # "LED_spacing": 4 * mm,  # distance between LEDs
+    "LED_spacing": 4,  # Use this if calculating refraction
+    "object_distance": 90.88 * mm,
+}
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
@@ -87,13 +97,20 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     # NA_obj = config["aperture_diameter"] / (2 * config["object_distance"])
     NA_obj = config['NA_obj'] # CJCJCJ
     print(f"Objective NA {NA_obj:.2e}")
-    pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
+    # pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
+    pupil_radius = 50
+    # pupil_radius = 25
+    pupil_radius = 11
     print(f"Aperture radius (pixels): {pupil_radius}")
 
     x = torch.arange(-config["N"] // 2, config["N"] // 2)
     Y, X = torch.meshgrid(x, x, indexing="xy")
     R = torch.sqrt(X**2 + Y**2)
-    config["M"] = R < pupil_radius  # circular aperture mask
+    # config["M"] = R < pupil_radius  # circular aperture mask
+    config["M"] = np.abs(Y) < pupil_radius
+    import matplotlib.pyplot as plt
+    plt.imshow(config["M"])
+    plt.show()
     config["X_m"] = X * config["dx"]
     config["Y_m"] = Y * config["dx"]
 
