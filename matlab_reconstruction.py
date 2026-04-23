@@ -5,10 +5,11 @@ import cv2
 from tqdm import tqdm
 from util import *
 
-debug = True
+debug = False
 onlyMiddle = False
 filterNorm = 0.25
-learningScalar = 0.01
+# learningScalar = 0.01
+learningScalar = 1
 
 def reconstruction(observations, Theta, num_epochs, config):
     if onlyMiddle:
@@ -19,6 +20,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
+    Theya = np.zeros_like(Theta)
     
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
@@ -49,6 +51,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     mask = config['M'].detach().cpu().numpy()
     mask = np.where(mask, 1.0, 0.0)
+    mask_og = np.copy(mask)
     blursize = 45
     # mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
     # plt.imshow(mask,cmap='gray')
@@ -63,6 +66,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
+            mask = mask_og * config['Ms'][i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
@@ -88,8 +92,11 @@ def reconstruction(observations, Theta, num_epochs, config):
                     newInfo
                 guess = iF(guessFT)
                 img1 = f'{prog_bar.n:03}_{i:03}_Measurement', observations[i,:,:]
+                # tmp = np.abs(np.sqrt(np.log(F(observations[i,:,:]))))
+                # img2 = f'{prog_bar.n:03}_{i:03}_', tmp - mask
                 img2 = f'{prog_bar.n:03}_{i:03}_Guess', np.abs(guess)
-                img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.sqrt(np.log(region)))
+                img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.log(region))
+                # img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.sqrt(np.log(region)))
                 # img4 = f'{prog_bar.n:03}_{i:03}_Mask', normalMask
                 img4 = f'{prog_bar.n:03}_{i:03}_Whole', np.abs(np.sqrt(np.log(guessFT)))
                 img5 = f'{prog_bar.n:03}_{i:03}_New', np.abs(np.sqrt(np.log(newInfo)))
@@ -98,7 +105,7 @@ def reconstruction(observations, Theta, num_epochs, config):
                 debug_print(img1,img2,img3,img4,img5,img6,save=False)
                 # debug_print(img7,img1,img2,save=False)
         first = False
-    
+
     # momentum
     countimg = 0
     tt = np.ones(num_epochs * num_samples)

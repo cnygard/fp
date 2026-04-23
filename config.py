@@ -46,6 +46,9 @@ UMD_BENCH_CONFIG = {
     # pupil_radius = 6
     "pupil_radius": 10,
     "coded": True,
+    "bar_angle": True,
+    "Ms": [None,None,None,None,None,None,None,None],
+
 }
 
 UCONN_CONFIG = {
@@ -76,6 +79,25 @@ FPI_CONFIG = {
     "NA_illum": 1.5e-6,
 }
 
+def rotating_bar_mask(shape, angle_deg, width):
+    h, w = shape
+    cy, cx = h // 2, w // 2
+
+    # coordinate grid centered at (0,0)
+    y, x = np.ogrid[:h, :w]
+    y = y - cy
+    x = x - cx
+
+    # convert angle to radians
+    theta = np.deg2rad(angle_deg)
+
+    # rotate coordinates
+    x_rot = x * np.cos(theta) + y * np.sin(theta)
+
+    # create bar mask (threshold on rotated x axis)
+    mask = np.abs(x_rot) < (width / 2)
+
+    return mask.astype(np.uint8)
 
 def setup_config(sample: torch.Tensor, base_config: dict):
     """Sets up experiment parameters
@@ -95,7 +117,8 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config["wavelength"] = 630 * nm  # red wavelength
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
-    config["upsample"] = 4 # ratio to scale output image
+    # config["upsample"] = 4 # ratio to scale output image
+    config["upsample"] = 2 # ratio to scale output image
     config["out_dx"] = config["upsample"] / config["dx"] # pixel size in output
     config["out_N"] = config["N"] * config["upsample"] # width of output image
 
@@ -114,7 +137,17 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     Y, X = torch.meshgrid(x, x, indexing="xy")
     R = torch.sqrt(X**2 + Y**2)
     if 'coded' in config and config['coded'] == True:
-        config["M"] = np.abs(Y) < pupil_radius # bar aperture
+        if 'bar_angle' in config:
+            config["Ms"][0] = rotating_bar_mask((config['N'], config['N']), -90, 20)
+            config["Ms"][1] = rotating_bar_mask((config['N'], config['N']), -67.5, 20)
+            config["Ms"][2] = rotating_bar_mask((config['N'], config['N']), -27, 20)
+            config["Ms"][3] = rotating_bar_mask((config['N'], config['N']), -17.5, 20)
+            config["Ms"][4] = rotating_bar_mask((config['N'], config['N']), 1, 20)
+            config["Ms"][5] = rotating_bar_mask((config['N'], config['N']), 12.5, 20)
+            config["Ms"][6] = rotating_bar_mask((config['N'], config['N']), 30, 20)
+            config["Ms"][7] = rotating_bar_mask((config['N'], config['N']), 67.5, 20)
+        config["M"] = R < 1000  # circular aperture mask
+        # config["M"] = np.abs(Y) < pupil_radius # bar aperture
     else:
         config["M"] = R < pupil_radius  # circular aperture mask
     config["X_m"] = X * config["dx"]

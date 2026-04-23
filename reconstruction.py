@@ -11,7 +11,7 @@ import ml_reconstruction
 import matlab_reconstruction
 
 isSim = False
-epochs = 10
+epochs = 0
 
 # data_source = 'umd_pi'
 data_source = 'umd_bench'
@@ -30,6 +30,8 @@ elif data_source == 'umd_bench':
     data_name = 'usaf_11_wide_slit'
     data_name = 'usaf_11_thin_slit'
     data_name = 'usaf_15_whole_turn'
+    data_name = 'slit_tilt_5'
+    data_name = 'slit_tilt_8'
 elif data_source == 'matlab':
     data_name = 'MouseKidney_green'
     data_name = 'USAF_red'
@@ -102,12 +104,14 @@ def load_umd_pi_images(data_dir):
     return samples_np, Theta, real_config
 
 def load_umd_bench_images(data_dir):
-    N = 11
-    size = 1080
+    N = 8
+    # size = 1080
+    size = 270
     observations_raw = np.empty((N,size,size))
     for i in range(N):
         print(f'{data_dir}/{i:04d}.jpg')
-        img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
+        img = cv2.imread(f'{data_dir}/{i:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
+        # img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
@@ -317,7 +321,9 @@ elif __name__ == "__main__" and not isSim:
     # debug_print(img1,img2,img3)
 
     if cj:
-        # luh = [0, 1, 5, 10, 18, 27, 39, 52, 68, 85, 105, 126, 150, 175, 203]
+        # luh = np.r_[0, 9:24, 49:80, 121:168] # skip one layer for less overlap
+        # luh = np.r_[0, 25:48, 121:168] # skip 2 layers for even less
+        # luh = [0, 1, 5, 10, 18, 27, 39, 52, 68, 85, 105, 126, 150, 175, 203] # only horizontal
         # luh = [0, 1, 5, 10, 18]
         # print(Theta[luh])
         pred = matlab_reconstruction.real(samples_np,
@@ -325,7 +331,8 @@ elif __name__ == "__main__" and not isSim:
                                           num_epochs=epochs,
                                           config=real_config)
         print(f'Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}')
-        img1 = 'First Measurement', samples_np[0,:,:]
+        # img1 = 'First Measurement', samples_np[0,:,:]
+        img1 = 'Averaged', np.sum(samples_np, axis=0) / samples_np.shape[0]
         img2 = 'Amplitude', np.abs(pred)
         img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)
