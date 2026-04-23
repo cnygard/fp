@@ -18,13 +18,16 @@ def debug_print(*imgs, save: bool=False):
         if num_rows > 1:
             axs[row,col].imshow(img, cmap='gray')
             axs[row,col].set_title(name)
+            axs[row,col].axis('off')
         else:
             axs[col].imshow(img, cmap='gray')
             axs[col].set_title(name)
+            axs[col].axis('off')
         if save:
             cv2.imwrite(f'../fpm_debug/{name}.jpg',
                         img * 255)
     plt.subplots_adjust(left=0.02, right=0.98, top=0.9, bottom=0.1)
+    plt.tight_layout()
     plt.show()
 
 def matlab_round(x):

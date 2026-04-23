@@ -28,12 +28,14 @@ elif data_source == 'umd_bench':
     data_name = 'usaf_15_every20'
     data_name = 'usaf_15_every10'
     data_name = 'usaf_11_wide_slit'
+    data_name = 'usaf_11_thin_slit'
+    data_name = 'usaf_15_whole_turn'
 elif data_source == 'matlab':
     data_name = 'MouseKidney_green'
     data_name = 'USAF_red'
 elif data_source == 'waller':
     data_name = 'Waller'
-    data_name = 'Waller-Full'
+    # data_name = 'Waller-Full'
 
 remove24 = False # remove bright field images
 showObservations = False
@@ -193,8 +195,8 @@ def load_waller_images(data_dir):
     size = 256
     observations_raw = np.empty((N,size,size))
     for i in range(N):
-        print(f'{data_dir}/{i:03d}.tif')
-        img = cv2.imread(f'{data_dir}/{i:03d}.tif')/255.0 # read as BGR
+        print(f'{data_dir}/ILED_{i:02d}.tif')
+        img = cv2.imread(f'{data_dir}/ILED_{i:02d}.tif')/255.0 # read as BGR
         color = 2 # red
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img[:,:,color].shape) - np.min(img[:,:,color].shape)) / 2)
@@ -322,9 +324,8 @@ elif __name__ == "__main__" and not isSim:
                                           Theta,
                                           num_epochs=epochs,
                                           config=real_config)
-        print(np.max(np.abs(pred)))
         print(f'Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}')
-        img1 = 'First Measurement', samples_np[6,:,:]
+        img1 = 'First Measurement', samples_np[0,:,:]
         img2 = 'Amplitude', np.abs(pred)
         img3 = 'Phase', np.angle(pred)
         debug_print(img1,img2,img3)

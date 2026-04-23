@@ -40,6 +40,12 @@ UMD_BENCH_CONFIG = {
     # "LED_spacing": 4 * mm,  # distance between LEDs
     "LED_spacing": 4,  # Use this if calculating refraction
     "object_distance": 90.88 * mm,
+    # pupil_radius = 50
+    # # pupil_radius = 25
+    # pupil_radius = 11
+    # pupil_radius = 6
+    "pupil_radius": 10,
+    "coded": True,
 }
 
 UCONN_CONFIG = {
@@ -97,20 +103,20 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     # NA_obj = config["aperture_diameter"] / (2 * config["object_distance"])
     NA_obj = config['NA_obj'] # CJCJCJ
     print(f"Objective NA {NA_obj:.2e}")
-    # pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
-    pupil_radius = 50
-    # pupil_radius = 25
-    pupil_radius = 11
+    if 'pupil_radius' in config:
+        pupil_radius = config['pupil_radius']
+    else:
+        pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
+
     print(f"Aperture radius (pixels): {pupil_radius}")
 
     x = torch.arange(-config["N"] // 2, config["N"] // 2)
     Y, X = torch.meshgrid(x, x, indexing="xy")
     R = torch.sqrt(X**2 + Y**2)
-    # config["M"] = R < pupil_radius  # circular aperture mask
-    config["M"] = np.abs(Y) < pupil_radius
-    import matplotlib.pyplot as plt
-    plt.imshow(config["M"])
-    plt.show()
+    if 'coded' in config and config['coded'] == True:
+        config["M"] = np.abs(Y) < pupil_radius # bar aperture
+    else:
+        config["M"] = R < pupil_radius  # circular aperture mask
     config["X_m"] = X * config["dx"]
     config["Y_m"] = Y * config["dx"]
 
