@@ -59,7 +59,6 @@ FPM_CONFIG = {
     "LED_spacing": 3.45,  # Use this if calculating refraction
     "aperture_diameter": 5.76 * mm,
     "object_distance": 57.71 * mm,
-    "wavelength": 532 * nm, # green wavelength
 }
 
 UMD_BENCH_CONFIG = {
@@ -75,20 +74,17 @@ UMD_BENCH_CONFIG = {
     "coded": True,
     "bar_angle": False,
     "Ms": [None,None,None,None,None,None,None,None],
-    "wavelength": 532 * nm, # green wavelength
 }
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
     "dx": 1.845 * um,
-    # "NA_obj": 0.1,
-    "NA_obj": 0.05,
+    "NA_obj": 0.1,
     "NA_illum": 0.39715,
     # "LED_spacing": 4 * mm,  # distance between LEDs
     "LED_spacing": 4,  # Use this if calculating refraction
     "object_distance": 90.88 * mm,
-    "wavelength": 532 * nm, # green wavelength
 }
 
 WALLER_CONFIG = {
@@ -97,7 +93,6 @@ WALLER_CONFIG = {
     "NA_obj": 0.1,
     "LED_dist": 4 * mm,
     "object_distance": 67.5 * mm, 
-    "wavelength": 532 * nm, # green wavelength
 }
 
 # Long-range imaging configuration
@@ -107,7 +102,6 @@ FPI_CONFIG = {
     "aperture_diameter": 50 * cm,
     "object_distance": 515 * km,  # Hubble Space Telescope distance
     "NA_illum": 1.5e-6,
-    "wavelength": 532 * nm, # green wavelength
 }
 
 def rotating_bar_mask(shape, angle_deg, width):
@@ -143,9 +137,12 @@ def setup_config(sample: torch.Tensor, base_config: dict):
 
     config["N"] = sample.shape[0]  # assume square image
     print("Object width", config["dx"] * config["N"])
-    config["wavelength"] = 630 * nm  # red wavelength
-    config["wavelength"] = 532 * nm  # green wavelength
-    config["wavelength"] = 475 * nm  # blue wavelength
+    if args.wavelength == 'red':
+        config["wavelength"] = 630 * nm  # red wavelength
+    elif args.wavelength == 'green':
+        config["wavelength"] = 532 * nm  # green wavelength
+    elif args.wavelength == 'blue':
+        config["wavelength"] = 475 * nm  # blue wavelength
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
     config["upsample"] = 4 # ratio to scale output image
@@ -185,40 +182,3 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config["Y_m"] = Y * config["dx"]
 
     return config
-
-#
-# def setup_config_real(sample: torch.Tensor, base_config: dict):
-#     """Sets up experiment parameters
-#     Args:
-#         sample: The sample image
-#         base_config: Base optical configuration
-#     """
-#     config = base_config
-#     # print(
-#     #     f"Max scan distance (m) {config['object_distance'] * np.tan(np.arcsin(config['NA_illum'])):.2e}"
-#     # )
-#
-#     config["N"] = sample.shape[0]  # assume square image
-#     print("Object width", config["dx"] * config["N"])
-#     config["wavelength"] = 630 * nm  # wavelength
-#     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
-#     print(f'k {config['k']}')
-#
-#     config["upsample"] = 4 # ratio to scale output image
-#     config["out_dx"] = config["upsample"] / config["dx"] # pixel size in output
-#     config["out_N"] = config["N"] * config["upsample"] # width of output image
-#
-#     # === Define pupil mask (circular aperture) ===
-#     NA_obj = config["NA_obj"]
-#     print(f"Objective NA {NA_obj:.2e}")
-#     pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
-#     print(f"Aperture radius (pixels): {pupil_radius}")
-#
-#     x = torch.arange(-config["N"] // 2, config["N"] // 2)
-#     Y, X = torch.meshgrid(x, x, indexing="xy")
-#     R = torch.sqrt(X**2 + Y**2)
-#     config["M"] = R < pupil_radius  # circular aperture mask
-#     config["X_m"] = X * config["dx"]
-#     config["Y_m"] = Y * config["dx"]
-#
-#     return config

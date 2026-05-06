@@ -17,8 +17,6 @@ def reconstruction(observations, Theta, num_epochs, config):
     guess = np.sum(observations, axis=0) / observations.shape[0]
     
     print(guess.shape)
-    # plt.imshow(guess,cmap='gray')
-    # plt.show()
 
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
@@ -39,11 +37,9 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     mask = config['M'].detach().cpu().numpy()
     mask = np.where(mask, 1.0, 0.0)
-    mask_og = np.copy(mask)
-    blursize = 45
+    # mask_og = np.copy(mask)
+    # blursize = 45
     # mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
-    # plt.imshow(mask,cmap='gray')
-    # plt.show()
 
     # need angle per measurement to reconstruct
     # call replace-angle on sample
@@ -53,7 +49,6 @@ def reconstruction(observations, Theta, num_epochs, config):
         for i in range(num_samples):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
-            # print(f'Index: {i} edge: {lx}')
             r = guessFT[ly:hy, lx:hx]
             # mask = mask_og * config['Ms'][i]
             r_masked = r * mask

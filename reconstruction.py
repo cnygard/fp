@@ -12,9 +12,6 @@ import matlab_reconstruction
 from config import args
 from load_data import *
 
-isSim = False
-epochs = 10
-
 # if data_source == 'umd_pi':
 #     data_name = 'Pumpkin'
 #     data_name = 'Heart'
