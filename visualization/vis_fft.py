@@ -7,8 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-IMAGE1_PATH = "Data/usaf_15_whole_turn/0001.jpg"
-IMAGE2_PATH = "Data/usaf_15_whole_turn/0008.jpg"
+IMAGE1_PATH = "../Data/usaf_15_every35_calc/0011.jpg"
+IMAGE2_PATH = "../Data/usaf_15_every35_calc/0013.jpg"
 SAVE_PATH = None
 
 

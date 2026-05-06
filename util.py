@@ -136,3 +136,20 @@ def rearrange(original, order):
     # import pdb;pdb.set_trace()
     return output
 
+def find_bounds(x,y,dx,dy,config):
+    center_of_output = (config['out_N'] + 1) // 2
+    centerX = matlab_round(center_of_output - x / dx)
+    centerY = matlab_round(center_of_output - y / dy)
+    lowX  = matlab_round(centerX - (config['N']-1)/2)
+    lowY  = matlab_round(centerY - (config['N']-1)/2)
+    highX = matlab_round(centerX + (config['N']-1)/2) + 1
+    highY = matlab_round(centerY + (config['N']-1)/2) + 1
+    return lowX, lowY, highX, highY
+
+def kspace_parameterize(Theta, config):
+    kx = config['k'] * Theta[:,0]
+    ky = config['k'] * Theta[:,1]
+    dkx = 2*np.pi/(config['dx']*config['N'])
+    dky = 2*np.pi/(config['dx']*config['N'])
+    return kx,ky,dkx,dky
+

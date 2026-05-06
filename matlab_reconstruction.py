@@ -4,23 +4,11 @@ import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 from util import *
-
-debug = False
-onlyMiddle = False
-filterNorm = 0.25
-# learningScalar = 0.01
-learningScalar = 1
+from config import args
 
 def reconstruction(observations, Theta, num_epochs, config):
-    if onlyMiddle:
-        middle_inds = torch.argwhere(torch.norm(Theta, dim=1) < filterNorm)
-        # print(middle_inds)
-        observations = observations[middle_inds.flatten(),:,:]
-        Theta = Theta[middle_inds.flatten(),:]
-
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
-    Theya = np.zeros_like(Theta)
     
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
@@ -65,8 +53,9 @@ def reconstruction(observations, Theta, num_epochs, config):
         for i in range(num_samples):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
+            # print(f'Index: {i} edge: {lx}')
             r = guessFT[ly:hy, lx:hx]
-            mask = mask_og * config['Ms'][i]
+            # mask = mask_og * config['Ms'][i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
@@ -77,11 +66,11 @@ def reconstruction(observations, Theta, num_epochs, config):
             newInfo = (low_res_guess_FT - r_masked)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
-                learningScalar *       \
+                args.learning *       \
                 normalMask *           \
                 newInfo
 
-            if debug and first:
+            if args.debug and first:
                 region[ly:hy,lx:hx] =     \
                     region[ly:hy,lx:hx] + \
                     normalMask *          \
@@ -129,6 +118,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             countimg += 1
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
+            # mask = mask_og * config['Ms'][i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
@@ -144,7 +134,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             newInfo = (low_res_guess_FT - r_masked)
             guessFT[ly:hy,lx:hx] =     \
                 guessFT[ly:hy,lx:hx] + \
-                learningScalar *       \
+                args.learning *       \
                 normalMask *           \
                 newInfo
             normalR = (np.conj(r) * gamma_obj)/((1 - beta) * np.abs(r)**2 + beta * np.max((np.abs(r))**2)) # does r change?
@@ -162,37 +152,11 @@ def reconstruction(observations, Theta, num_epochs, config):
                 PT = np.copy(mask)
 
                 countimg = 0
-        # img1 = f'Best_Sample', observations[7]
-        # img2 = f'Amplitude', np.abs(iF(guessFT))
-        # img3 = f'Phase', np.angle(iF(guessFT))
-        # debug_print(img1,img2,img3,save=False)
     return iF(guessFT)
 
-def sim(gt_sample, Theta, num_epochs, config):
-    num_samples = Theta.shape[0]
-    observations = np.empty((num_samples,
-                             gt_sample.shape[0],
-                             gt_sample.shape[1]))
-    for i in range(num_samples):
-        observations[i,:,:] = np.copy(gt_sample)
+def sim(observations, Theta, num_epochs, config):
     return reconstruction(observations, Theta, num_epochs, config)
 
 def real(observations, Theta, num_epochs, config):
     return reconstruction(observations, Theta, num_epochs, config)
 
-def find_bounds(x,y,dx,dy,config):
-    center_of_output = (config['out_N']+1) / 2
-    centerX = matlab_round(center_of_output - x / dx)
-    centerY = matlab_round(center_of_output - y / dy)
-    lowX  = matlab_round(centerX - (config['N']-1)/2)
-    lowY  = matlab_round(centerY - (config['N']-1)/2)
-    highX = matlab_round(centerX + (config['N']-1)/2) + 1
-    highY = matlab_round(centerY + (config['N']-1)/2) + 1
-    return lowX, lowY, highX, highY
-
-def kspace_parameterize(Theta, config):
-    kx = config['k'] * Theta[:,0]
-    ky = config['k'] * Theta[:,1]
-    dkx = 2*np.pi/(config['dx']*config['N'])
-    dky = 2*np.pi/(config['dx']*config['N'])
-    return kx,ky,dkx,dky
