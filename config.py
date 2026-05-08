@@ -12,7 +12,7 @@ nm = 1e-9
 
 parser = argparse.ArgumentParser()
 parser.add_argument("name",
-                    help="select name for data directory")
+                    help="select name for data directory or data file if in sim mode")
 parser.add_argument("-s", "--source", default="umd_bench",
                     choices=["umd_bench","umd_pi","matlab","waller"], 
                     help="select camera source that data was taken from (default: umd_bench)")
@@ -23,16 +23,12 @@ parser.add_argument("--sim", action="store_true",
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")
 parser.add_argument("-lr", "--learning", type=int, default=0.01,
-                    help="select learning rate")
+                    help="learning rate")
 
 parser.add_argument("-w", "--wavelength", default="green",
-                    choices=["red","green","blue"], 
-                    help="select wavelength")
+                    choices=["red","green","blue"])
 
-parser.add_argument("-v", "--verbose", action="store_true",
-                    help="increase output verbosity")
-parser.add_argument("-d", "--debug", action="store_true",
-                    help="run in debug mode")
+parser.add_argument("-d", "--debug", action="store_true")
 parser.add_argument("-o", "--observations", action="store_true",
                     help="show observations")
 
