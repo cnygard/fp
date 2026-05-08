@@ -161,7 +161,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     x = torch.arange(-config["N"] // 2, config["N"] // 2)
     Y, X = torch.meshgrid(x, x, indexing="xy")
     R = torch.sqrt(X**2 + Y**2)
-    if 'coded' in config and config['coded'] == True:
+    if True:
         if 'bar_angle' in config:
             config["Ms"][0] = rotating_bar_mask((config['N'], config['N']), -90, 20)
             config["Ms"][1] = rotating_bar_mask((config['N'], config['N']), -67.5, 20)
