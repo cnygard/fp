@@ -32,7 +32,7 @@ parser.add_argument("-d", "--debug", action="store_true")
 parser.add_argument("-o", "--observations", action="store_true",
                     help="show observations")
 
-parser.add_argument("-m", "-mode", type=str, default="translate",
+parser.add_argument("-m", "--mode", type=str, default="translate",
                     choices=["translate","rotate"])
 parser.add_argument("-width", "--slit_width", type=int,
                     help="slit width in pixels")
@@ -154,6 +154,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
 
     # === Define pupil mask (circular aperture) ===
     print(f"Objective NA {config['NA_obj']:.2e}")
+    config['slit_width'] = args.slit_width
     print(f"Slit width (pixels): {config['slit_width']}")
 
     x = torch.arange(-config["N"] // 2, config["N"] // 2)
