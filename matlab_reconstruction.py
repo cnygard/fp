@@ -49,7 +49,7 @@ def reconstruction(observations, Theta, num_epochs, config):
         for i in range(num_samples):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
-            print(f'{lx} {hx} , {ly} {hy}')
+            # print(f'{lx} {hx} , {ly} {hy}')
             r = guessFT[ly:hy, lx:hx]
             # mask = mask_og * config['Ms'][i]
             r_masked = r * mask

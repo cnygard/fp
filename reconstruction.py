@@ -42,7 +42,7 @@ cj = True  # use CJ's reconstruction from Matlab code
 print(f"Sim: {args.sim}")
 # ===== Real data =====
 if __name__ == "__main__" and not args.sim:
-    data_dir = "Data/" + args.name
+    data_dir = "Data/" + args.data_name
     if args.source == "umd_pi":
         samples_np, Theta, real_config = load_umd_pi_images(data_dir)
     elif args.source == "umd_bench":
@@ -111,7 +111,8 @@ elif __name__ == "__main__" and args.sim:
     # === Load and preprocess image ===
     W = 564
     DOWNSAMPLE = 4
-    sample = cv2.imread("/home/m/downloads/USAF-1951.tif", 0).astype(np.float32)
+    data_dir = "Data/" + args.data_name
+    sample = cv2.imread(data_dir, 0).astype(np.float32)
     sample = cv2.resize(sample, (W, W)) / 255.0
     sim_config = setup_config(
         torch.zeros(W // DOWNSAMPLE, W // DOWNSAMPLE), UCONN_CONFIG

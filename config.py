@@ -11,8 +11,8 @@ um = 1e-6
 nm = 1e-9
 
 parser = argparse.ArgumentParser()
-parser.add_argument("name",
-                    help="select name for data directory or data file if in sim mode")
+parser.add_argument("data_name",
+                    help="location of data relative to Data directory")
 parser.add_argument("-s", "--source", default="umd_bench",
                     choices=["umd_bench","umd_pi","matlab","waller"], 
                     help="select camera source that data was taken from (default: umd_bench)")
@@ -139,6 +139,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
         config["wavelength"] = 532 * nm  # green wavelength
     elif args.wavelength == 'blue':
         config["wavelength"] = 475 * nm  # blue wavelength
+    print(f'Wavelength {args.wavelength} {config["wavelength"]}')
     config["k"] = 2 * np.pi / config["wavelength"]  # wave number
 
     config["upsample"] = 4 # ratio to scale output image
