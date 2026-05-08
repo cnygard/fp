@@ -81,6 +81,7 @@ UCONN_CONFIG = {
     # "LED_spacing": 4 * mm,  # distance between LEDs
     "LED_spacing": 4,  # Use this if calculating refraction
     "object_distance": 90.88 * mm,
+    "Ms": [None,None,None,None,None,None,None,None],
 }
 
 WALLER_CONFIG = {
@@ -162,7 +163,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     Y, X = torch.meshgrid(x, x, indexing="xy")
     R = torch.sqrt(X**2 + Y**2)
     if True:
-        if 'bar_angle' in config:
+        if True:
             config["Ms"][0] = rotating_bar_mask((config['N'], config['N']), -90, 20)
             config["Ms"][1] = rotating_bar_mask((config['N'], config['N']), -67.5, 20)
             config["Ms"][2] = rotating_bar_mask((config['N'], config['N']), -27, 20)

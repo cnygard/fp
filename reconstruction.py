@@ -69,23 +69,7 @@ if __name__ == "__main__" and not args.sim:
     if cj:
         # luh = np.r_[0, 9:24, 49:80, 121:168] # skip one layer for less overlap
         # luh = np.r_[0, 25:48, 121:168] # skip 2 layers for even less
-        luh = [
-            0,
-            1,
-            5,
-            10,
-            18,
-            27,
-            39,
-            52,
-            68,
-            85,
-            105,
-            126,
-            150,
-            175,
-            203,
-        ]  # only horizontal
+        luh = [0,1,5,10,18,27,39,52,68,85,105,126,150,175,203]  # only horizontal
         # luh = [0, 1, 5, 10, 18]
         pred = matlab_reconstruction.real(
             samples_np, Theta, num_epochs=args.epochs, config=real_config
@@ -120,22 +104,39 @@ elif __name__ == "__main__" and args.sim:
 
     LED_dir = "Data/USAF_red_LED_locations"
     LED_raw = scipy.io.loadmat(LED_dir)
-    xlocation, ylocation = torch.from_numpy(
-        LED_raw["xlocation_s"].astype(float)
-    ), torch.from_numpy(LED_raw["ylocation_s"].astype(float))
+    xlocation, ylocation = (
+        torch.from_numpy(LED_raw["xlocation_s"].astype(float)),
+        torch.from_numpy(LED_raw["ylocation_s"].astype(float))
+    )
     positions = torch.stack([ylocation, xlocation], dim=-1).reshape(-1, 2)
     Theta = LED_angles(positions, sim_config)
 
-    num_samples = Theta.shape[0]
+    luh = [0,1,5,10,18,27,39,52,68,85,105,126,150,175,203]  # only horizontal
+    Theta = Theta[luh]
+
+    # num_samples = Theta.shape[0]
+    num_samples = 8
     observations = np.empty((num_samples, W // DOWNSAMPLE, W // DOWNSAMPLE))
-    kx, ky, dkx, dky = kspace_parameterize(Theta, sim_config)
+    # kx, ky, dkx, dky = kspace_parameterize(Theta, sim_config)
+    kx = Theta[:,0]
+    ky = Theta[:,1]
+    dkx = 1
+    dky = 1
     O = F(sample)
 
     for i in range(num_samples):
         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
-        mask = sim_config["M"]
+        # mask = sim_config["M"]
+        # mask = np.where(mask, 1.0, 0.0)
+        mask = sim_config['Ms'][i]
         mask = np.where(mask, 1.0, 0.0)
-        observations[i, :, :] = np.abs(iF(O[ly:hy, lx:hx] * mask)) ** 2
+        masked = O[ly:hy, lx:hx] * mask
+        observations[i, :, :] = np.abs(iF(masked)) ** 2
+        plt.subplot(1,2,1)
+        plt.imshow(observations[i])
+        plt.subplot(1,2,2)
+        plt.imshow(np.abs(np.log(masked)))
+        plt.show()
 
     if args.observations:
         samples_per = 12
@@ -160,9 +161,15 @@ elif __name__ == "__main__" and args.sim:
             observations, Theta, num_epochs=args.epochs, config=sim_config
         )
         print(f"Sample shape {sample.shape}, Result shape {pred.shape}")
-        img1 = "Ground Truth", sample
+        # img1 = "Ground Truth", sample
+        guess = np.sum(observations, axis=0) / observations.shape[0]
+        guess = cv2.resize(guess,
+                           (guess.shape[0] * sim_config['upsample'],
+                            guess.shape[1] * sim_config['upsample']))
+        img1 = "Sum Guess", guess
         img2 = "Amplitude", np.abs(pred)
-        img3 = "Phase", np.angle(pred)
+        img3 = "F", np.real(np.log(F(pred)))
+        # img3 = "Phase", np.angle(pred)
         debug_print(img1, img2, img3)
     else:
         pred = ml_reconstruction.sim(

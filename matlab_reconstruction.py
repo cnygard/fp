@@ -9,13 +9,13 @@ from config import args
 def reconstruction(observations, Theta, num_epochs, config):
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
-    
+ 
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
     # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[0,:,:])
     guess = np.sum(observations, axis=0) / observations.shape[0]
-    
+
     print(guess.shape)
 
     guess = cv2.resize(guess,
@@ -27,7 +27,8 @@ def reconstruction(observations, Theta, num_epochs, config):
     # region = np.copy(guessFT)
     region = np.zeros(guessFT.shape)
 
-    if config['title'] == 'UMD Bench Microscopy':
+    # if config['title'] == 'UMD Bench Microscopy':
+    if True:
         kx = Theta[:,0]
         ky = Theta[:,1]
         dkx = 1
@@ -51,7 +52,8 @@ def reconstruction(observations, Theta, num_epochs, config):
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             # print(f'{lx} {hx} , {ly} {hy}')
             r = guessFT[ly:hy, lx:hx]
-            # mask = mask_og * config['Ms'][i]
+            mask = config['Ms'][i]
+            mask = np.where(mask, 1.0, 0.0)
             r_masked = r * mask
             low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
@@ -114,7 +116,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             countimg += 1
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
-            # mask = mask_og * config['Ms'][i]
+            mask = config['Ms'][i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
