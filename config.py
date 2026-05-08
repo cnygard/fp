@@ -32,6 +32,11 @@ parser.add_argument("-d", "--debug", action="store_true")
 parser.add_argument("-o", "--observations", action="store_true",
                     help="show observations")
 
+parser.add_argument("-m", "--mode", type=str, default="translate",
+                    choices=["translate","rotate"])
+parser.add_argument("-width", "--slit_width", type=int,
+                    help="slit width in pixels")
+
 args = parser.parse_args()
 
 # # Microscopy configuration
@@ -149,34 +154,12 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config["out_N"] = config["N"] * config["upsample"] # width of output image
 
     # === Define pupil mask (circular aperture) ===
-    # NA_obj = config["aperture_diameter"] / (2 * config["object_distance"])
-    NA_obj = config['NA_obj'] # CJCJCJ
-    print(f"Objective NA {NA_obj:.2e}")
-    if 'pupil_radius' in config:
-        pupil_radius = config['pupil_radius']
-    else:
-        pupil_radius = int(NA_obj * config["N"] * config["dx"] / config["wavelength"])
-
-    print(f"Aperture radius (pixels): {pupil_radius}")
+    print(f"Objective NA {config['NA_obj']:.2e}")
+    config['slit_width'] = args.slit_width
+    print(f"Slit width (pixels): {config['slit_width']}")
 
     x = torch.arange(-config["N"] // 2, config["N"] // 2)
-    Y, X = torch.meshgrid(x, x, indexing="xy")
-    R = torch.sqrt(X**2 + Y**2)
-    if True:
-        if True:
-            config["Ms"][0] = rotating_bar_mask((config['N'], config['N']), -90, 20)
-            config["Ms"][1] = rotating_bar_mask((config['N'], config['N']), -67.5, 20)
-            config["Ms"][2] = rotating_bar_mask((config['N'], config['N']), -27, 20)
-            config["Ms"][3] = rotating_bar_mask((config['N'], config['N']), -17.5, 20)
-            config["Ms"][4] = rotating_bar_mask((config['N'], config['N']), 1, 20)
-            config["Ms"][5] = rotating_bar_mask((config['N'], config['N']), 12.5, 20)
-            config["Ms"][6] = rotating_bar_mask((config['N'], config['N']), 30, 20)
-            config["Ms"][7] = rotating_bar_mask((config['N'], config['N']), 67.5, 20)
-        # config["M"] = R < 55  # circular aperture mask
-        config["M"] = np.abs(Y) < pupil_radius # bar aperture
-    else:
-        config["M"] = R < pupil_radius  # circular aperture mask
-    config["X_m"] = X * config["dx"]
-    config["Y_m"] = Y * config["dx"]
+    X, _Y = torch.meshgrid(x, x, indexing="xy")
+    config["M"] = np.abs(X) < config['slit_width'] # bar aperture
 
     return config

@@ -75,13 +75,17 @@ def load_umd_bench_images(data_dir):
 
     real_config = setup_config(samples_np[0,:,:], UMD_BENCH_CONFIG)
 
-    width = N
-    center = width // 2
-    location = np.arange(width)
-    xlocation = location - center
-    ylocation = np.zeros_like(xlocation)
-    positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-    shift = positions * 150 * -1
+    if args.mode == "translate":
+        width = N
+        center = width // 2
+        location = np.arange(width)
+        xlocation = location - center
+        ylocation = np.zeros_like(xlocation)
+        positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
+        shift = positions * 150 * -1
+    elif args.mode == "rotate":
+        # TODO fix later, hardcoded old values for now
+        shift = np.array([[-90, 0], [-67.5, 0], [-27, 0], [-17.5, 0], [1, 0], [12.5, 0], [30, 0], [67.5, 0]])
     return samples_np, shift, real_config
 
 def load_matlab_images(data_dir):

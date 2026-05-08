@@ -5,6 +5,7 @@ import cv2
 from tqdm import tqdm
 from util import *
 from config import args
+from config import rotating_bar_mask
 
 def reconstruction(observations, Theta, num_epochs, config):
     num_samples = observations.shape[0]
@@ -36,8 +37,14 @@ def reconstruction(observations, Theta, num_epochs, config):
     else:
         kx,ky,dkx,dky = kspace_parameterize(Theta, config)
 
-    mask = config['M'].detach().cpu().numpy()
-    mask = np.where(mask, 1.0, 0.0)
+    if args.mode == "translate":
+        mask = config['M'].detach().cpu().numpy()
+        mask = np.where(mask, 1.0, 0.0)
+    elif args.mode == "rotate":
+        # unfinished, pass rotation angles as Theta?
+        masks = np.zeros((num_samples, config['N'], config['N']))
+        for i in range(num_samples):
+            masks[i] = rotating_bar_mask((config['N'], config['N']), Theta[i,0], args.slit_width)
     # mask_og = np.copy(mask)
     # blursize = 45
     # mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
