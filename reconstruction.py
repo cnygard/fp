@@ -13,30 +13,6 @@ from tqdm import tqdm
 
 from util import *
 
-# if data_source == 'umd_pi':
-#     data_name = 'Pumpkin'
-#     data_name = 'Heart'
-#     data_name = 'Stupid'
-#     data_name = 'Intestine'
-#     data_name = 'Crevice'
-#     data_name = 'PI_USAF_OLD'
-#     data_name = 'PI_USAF_NEW'
-# elif data_source == 'umd_bench':
-#     # data_name = 'usaf_15_every20'
-#     # data_name = 'usaf_15_every10'
-#     # data_name = 'usaf_11_wide_slit'
-#     # data_name = 'usaf_11_thin_slit'
-#     # data_name = 'usaf_15_whole_turn'
-#     # data_name = 'slit_tilt_5'
-#     # data_name = 'slit_tilt_8'
-#     data_name = 'usaf_15_every35_calc'
-# elif data_source == 'matlab':
-#     data_name = 'MouseKidney_green'
-#     data_name = 'USAF_red'
-# elif data_source == 'waller':
-#     data_name = 'Waller'
-#     # data_name = 'Waller-Full'
-
 cj = True  # use CJ's reconstruction from Matlab code
 
 print(f"Sim: {args.sim}")
@@ -52,12 +28,6 @@ if __name__ == "__main__" and not args.sim:
     elif args.source == "waller":
         samples_np, Theta, real_config = load_waller_images(data_dir)
 
-    # plt.imshow(samples_np[0])
-    # plt.show()
-    # plt.imshow(samples_np[1])
-    # plt.show()
-    # plt.imshow(samples_np[2])
-    # plt.show()
     if args.observations:
         samples_per = 20
         shape = 4, 5
@@ -73,6 +43,7 @@ if __name__ == "__main__" and not args.sim:
             plt.show()
 
     if cj:
+        avg = np.sum(samples_np, axis=0) / samples_np.shape[0]
         # luh = np.r_[0, 9:24, 49:80, 121:168] # skip one layer for less overlap
         # luh = np.r_[0, 25:48, 121:168] # skip 2 layers for even less
         # luh = [0,1,5,10,18,27,39,52,68,85,105,126,150,175,203]  # only horizontal
@@ -88,7 +59,7 @@ if __name__ == "__main__" and not args.sim:
             print('Results saved to Data/output_amplitdue.jpg and Data/output_phase.jpg')
         # img1 = 'First Measurement', samples_np[0,:,:]
         # img1 = 'Middle Measurement', samples_np[samples_np.shape[0]//2,:,:]
-        img1 = "Averaged", np.sum(samples_np, axis=0) / samples_np.shape[0]
+        img1 = "Averaged", avg
         img2 = "Amplitude", np.abs(pred)
         img3 = "Phase", np.angle(pred)
         debug_print(img1, img2, img3)

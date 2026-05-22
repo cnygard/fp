@@ -83,12 +83,12 @@ UMD_BENCH_CONFIG = {
 UMD_SLIT_TRANS_CONFIG = {
     "title": "UMD Slit Translation Microscopy",
     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
-    "dx": 2.76 * um, # distance between pixels on the sample
+    "dx": 3.45 * um, # distance between pixels on the sample
     "pixel_size": 3.45 * um, # size of sensor pixel
-    "object_distance": 450 * mm,
+    "object_distance": 500 * mm,
     # "aperture_width": 1.2*mm * 1080 * 3.45*um / (532*nm * 100*mm), # ~84 px
     "wavelength": 532 * nm, # green wavelength
-    "f1": 100*mm, # focal length 1
+    "f1": 125*mm, # focal length 1
     "f2": 125*mm, # focal length 2
 
 }

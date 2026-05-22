@@ -66,8 +66,9 @@ def load_umd_bench_images(data_dir):
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
-            observations_raw[i,:,:] = cv2.resize(img[:,left:right],
-                                                 (size,size))
+            resized = cv2.resize(img[:,left:right], (size,size))
+            amplitude = np.sqrt(resized)
+            observations_raw[i,:,:] = amplitude
         else:
             observations_raw[i,:,:] = img
 
