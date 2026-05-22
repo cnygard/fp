@@ -3,6 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
+km = 1e3
+m = 1
+cm = 1e-2
+mm = 1e-3
+um = 1e-6
+nm = 1e-9
+
 # input variadic tuples of name,image
 def debug_print(*imgs, save: bool=False):
     max_width = 3
@@ -152,4 +159,7 @@ def kspace_parameterize(Theta, config):
     dkx = 2*np.pi/(config['dx']*config['N'])
     dky = 2*np.pi/(config['dx']*config['N'])
     return kx,ky,dkx,dky
+
+def focal_plane_dist_to_pixels(dist_mm, config): 
+    return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["f1"])
 

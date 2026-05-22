@@ -56,12 +56,13 @@ def load_umd_pi_images(data_dir):
     return samples_np, Theta, real_config
 
 def load_umd_bench_images(data_dir):
-    N = 15
+    N = args.samples_count
     size = 1080
     observations_raw = np.empty((N,size,size))
     for i in range(N):
-        print(f'{data_dir}/{i:04d}.jpg')
+        # print(f'{data_dir}/{i+1:04d}.jpg')
         img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
+        # img = cv2.imread(f'{data_dir}/1{i:03d}.tif', cv2.IMREAD_GRAYSCALE)/3.0
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
@@ -73,7 +74,7 @@ def load_umd_bench_images(data_dir):
     size = observations_raw.shape[1]
     samples_np = observations_raw
 
-    real_config = setup_config(samples_np[0,:,:], UMD_BENCH_CONFIG)
+    real_config = setup_config(samples_np[0,:,:], UMD_SLIT_TRANS_CONFIG)
 
     if args.mode == "translate":
         width = N
@@ -82,7 +83,8 @@ def load_umd_bench_images(data_dir):
         xlocation = location - center
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * 150 * -1
+        shift = positions * real_config['translation']
+        # print(f'positions {shift}')
     elif args.mode == "rotate":
         # TODO fix later, hardcoded old values for now
         shift = np.array([[-90, 0], [-67.5, 0], [-27, 0], [-17.5, 0], [1, 0], [12.5, 0], [30, 0], [67.5, 0]])

@@ -3,12 +3,7 @@ import numpy as np
 
 import argparse
 
-km = 1e3
-m = 1
-cm = 1e-2
-mm = 1e-3
-um = 1e-6
-nm = 1e-9
+from util import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("data_name",
@@ -25,7 +20,7 @@ parser.add_argument("-e", "--epochs", type=int, default=10,
 parser.add_argument("-lr", "--learning", type=int, default=0.01,
                     help="learning rate")
 
-parser.add_argument("-w", "--wavelength", default="green",
+parser.add_argument("-wl", "--wavelength",
                     choices=["red","green","blue"])
 
 parser.add_argument("-d", "--debug", action="store_true")
@@ -34,8 +29,16 @@ parser.add_argument("-o", "--observations", action="store_true",
 
 parser.add_argument("-m", "--mode", type=str, default="translate",
                     choices=["translate","rotate"])
-parser.add_argument("-width", "--slit_width", type=int,
-                    help="slit width in pixels")
+parser.add_argument("-w", "--slit_width", type=float, required=True,
+                    help="slit width in mm")
+parser.add_argument("-t", "--translation", type=float, required=True,
+                    help="translation between measurements in mm")
+parser.add_argument("-n", "--samples_count", type=int, required=True,
+                    help="number of samples taken")
+
+parser.add_argument("--save", action="store_true",
+                    help="save output amplitude and phase")
+
 
 args = parser.parse_args()
 
@@ -70,12 +73,26 @@ UMD_BENCH_CONFIG = {
     "NA_illum": 0.39715,
     # "LED_spacing": 4 * mm,  # distance between LEDs
     "LED_spacing": 4,  # Use this if calculating refraction
-    "object_distance": 90.88 * mm,
-    "pupil_radius": 350,
+    "object_distance": 450 * mm,
+    "aperture_width": 350,
     "coded": True,
     "bar_angle": False,
     "Ms": [None,None,None,None,None,None,None,None],
 }
+
+UMD_SLIT_TRANS_CONFIG = {
+    "title": "UMD Slit Translation Microscopy",
+    # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
+    "dx": 2.76 * um, # distance between pixels on the sample
+    "pixel_size": 3.45 * um, # size of sensor pixel
+    "object_distance": 450 * mm,
+    # "aperture_width": 1.2*mm * 1080 * 3.45*um / (532*nm * 100*mm), # ~84 px
+    "wavelength": 532 * nm, # green wavelength
+    "f1": 100*mm, # focal length 1
+    "f2": 125*mm, # focal length 2
+
+}
+
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
@@ -133,33 +150,40 @@ def setup_config(sample: torch.Tensor, base_config: dict):
         base_config: Base optical configuration
     """
     config = base_config
-    print(
-        f"Max scan distance (m) {config['object_distance'] * np.tan(np.arcsin(config['NA_illum'])):.2e}"
-    )
+    # print(
+    #     f"Max scan distance (m) {config['object_distance'] * np.tan(np.arcsin(config['NA_illum'])):.2e}"
+    # )
 
-    config["N"] = sample.shape[0]  # assume square image
-    print("Object width", config["dx"] * config["N"])
+    config['N'] = sample.shape[0]  # assume square image
+    print('Object width', config['dx'] * config['N'])
     if args.wavelength == 'red':
-        config["wavelength"] = 630 * nm  # red wavelength
+        config['wavelength'] = 630 * nm  # red wavelength
     elif args.wavelength == 'green':
-        config["wavelength"] = 532 * nm  # green wavelength
+        config['wavelength'] = 532 * nm  # green wavelength
     elif args.wavelength == 'blue':
-        config["wavelength"] = 475 * nm  # blue wavelength
-    print(f'Wavelength {args.wavelength} {config["wavelength"]}')
-    config["k"] = 2 * np.pi / config["wavelength"]  # wave number
+        config['wavelength'] = 475 * nm  # blue wavelength
+    elif args.wavelength == None and not 'wavelength' in config:
+        config['wavelength'] = 532 * nm  # green wavelength
+    print(f'Wavelength {args.wavelength} {config['wavelength']}')
+    config['k'] = 2 * np.pi / config['wavelength']  # wave number
 
-    config["upsample"] = 4 # ratio to scale output image
-    # config["upsample"] = 2 # ratio to scale output image
-    config["out_dx"] = config["upsample"] / config["dx"] # pixel size in output
-    config["out_N"] = config["N"] * config["upsample"] # width of output image
+    config['upsample'] = 4 # ratio to scale output image
+    config['out_dx'] = config['upsample'] / config['dx'] # pixel size in output
+    config['out_N'] = config['N'] * config['upsample'] # width of output image
 
     # === Define pupil mask (circular aperture) ===
-    print(f"Objective NA {config['NA_obj']:.2e}")
-    config['slit_width'] = args.slit_width
-    print(f"Slit width (pixels): {config['slit_width']}")
+    # print(f'Objective NA {config['NA_obj']:.2e}')
+    config['aperture_width'] = focal_plane_dist_to_pixels(args.slit_width, config) # pixel calculation
+    config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
+    print(f'Slit width: {args.slit_width}mm {config['aperture_width']} pixels')
+    print(f'Aperture translation: {args.translation}mm {config['translation']} pixels')
+    overlap_mm = (args.slit_width - args.translation)
+    overlap_px = (config['aperture_width'] - config['translation']) / config['aperture_width']
+    overlap_percent = (args.slit_width - args.translation) / args.slit_width 
+    print(f'Overlap: {overlap_mm}mm {overlap_px} pixels {overlap_percent}%')
 
-    x = torch.arange(-config["N"] // 2, config["N"] // 2)
-    X, _Y = torch.meshgrid(x, x, indexing="xy")
-    config["M"] = np.abs(X) < config['slit_width'] # bar aperture
+    x = torch.arange(-config['N'] // 2, config['N'] // 2)
+    X, _Y = torch.meshgrid(x, x, indexing='xy')
+    config['M'] = np.abs(X) < config['aperture_width']/2 # bar aperture
 
     return config

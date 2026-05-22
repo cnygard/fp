@@ -13,9 +13,9 @@ def reconstruction(observations, Theta, num_epochs, config):
  
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
-    # guess = np.zeros((observations.shape[1], observations.shape[2]))
-    # guess = np.copy(observations[0,:,:])
-    guess = np.sum(observations, axis=0) / observations.shape[0]
+    guess = np.zeros((observations.shape[1], observations.shape[2]))
+    # guess = np.copy(observations[7,:,:])
+    # guess = np.sum(observations, axis=0) / observations.shape[0]
 
     print(guess.shape)
 
@@ -59,7 +59,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             # print(f'{lx} {hx} , {ly} {hy}')
             r = guessFT[ly:hy, lx:hx]
-            mask = config['Ms'][i]
+            # mask = config['Ms'][i]
             mask = np.where(mask, 1.0, 0.0)
             r_masked = r * mask
             low_res_guess = iF(r_masked)
@@ -123,7 +123,7 @@ def reconstruction(observations, Theta, num_epochs, config):
             countimg += 1
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
-            mask = config['Ms'][i]
+            # mask = config['Ms'][i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
