@@ -175,12 +175,12 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     # print(f'Objective NA {config['NA_obj']:.2e}')
     config['aperture_width'] = focal_plane_dist_to_pixels(args.slit_width, config) # pixel calculation
     config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
-    print(f'Slit width: {args.slit_width}mm {config['aperture_width']} pixels')
-    print(f'Aperture translation: {args.translation}mm {config['translation']} pixels')
+    print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels')
+    print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f} pixels')
     overlap_mm = (args.slit_width - args.translation)
-    overlap_px = (config['aperture_width'] - config['translation']) / config['aperture_width']
-    overlap_percent = (args.slit_width - args.translation) / args.slit_width 
-    print(f'Overlap: {overlap_mm}mm {overlap_px} pixels {overlap_percent}%')
+    overlap_px = config['aperture_width'] - config['translation']
+    overlap_percent = 100 * (args.slit_width - args.translation) / args.slit_width 
+    print(f'Overlap: {overlap_mm:.2f}mm {overlap_px:.2f} pixels {overlap_percent:.2f}%')
 
     x = torch.arange(-config['N'] // 2, config['N'] // 2)
     X, _Y = torch.meshgrid(x, x, indexing='xy')
