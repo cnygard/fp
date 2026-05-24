@@ -17,7 +17,7 @@ parser.add_argument("--sim", action="store_true",
 
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")
-parser.add_argument("-lr", "--learning", type=int, default=0.01,
+parser.add_argument("-lr", "--learning", type=float, default=0.01,
                     help="learning rate")
 
 parser.add_argument("-wl", "--wavelength",
