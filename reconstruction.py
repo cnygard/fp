@@ -84,7 +84,7 @@ elif __name__ == "__main__" and args.sim:
     sample = cv2.imread(data_dir, 0).astype(np.float32)
     sample = cv2.resize(sample, (W, W)) / 255.0
     sim_config = setup_config(
-        torch.zeros(W // DOWNSAMPLE, W // DOWNSAMPLE), UCONN_CONFIG
+        torch.zeros(W // DOWNSAMPLE, W // DOWNSAMPLE), UMD_SLIT_TRANS_CONFIG
     )
 
     num_samples = 8
