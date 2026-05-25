@@ -13,7 +13,7 @@ from config import args
 
 def load_umd_pi_images(data_dir):
     N = 256
-    size = 250
+    size = args.resolution
     observations_raw = np.empty((N,size,size))
     left,right,top,bottom = 225,475,175,425
     for i in range(N):
@@ -57,16 +57,20 @@ def load_umd_pi_images(data_dir):
 
 def load_umd_bench_images(data_dir):
     N = args.samples_count
-    size = 1080
+    size = args.resolution
     observations_raw = np.empty((N,size,size))
+    # if args.exposures:
+    #     with open(f'{data_dir}/exposures.txt', 'r') as file:
+    #         exposures = [float(next(file).strip()) for _ in range(N)]
     for i in range(N):
         # print(f'{data_dir}/{i+1:04d}.jpg')
         img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
-        # img = cv2.imread(f'{data_dir}/1{i:03d}.tif', cv2.IMREAD_GRAYSCALE)/3.0
+        # img = cv2.imread(f'{data_dir}/{i+1:04d}.tif', cv2.IMREAD_GRAYSCALE)/255.0
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
             resized = cv2.resize(img[:,left:right], (size,size))
+            # exposure_adjusted = resized / (exposures[i] / np.min(exposures))
             amplitude = np.sqrt(resized)
             observations_raw[i,:,:] = amplitude
         else:
@@ -119,7 +123,7 @@ def load_matlab_images(data_dir):
 
 def load_waller_images(data_dir):
     N = 25
-    size = 256
+    size = args.resolution
     observations_raw = np.empty((N,size,size))
     for i in range(N):
         print(f'{data_dir}/ILED_{i:02d}.tif')

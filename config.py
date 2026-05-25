@@ -17,7 +17,7 @@ parser.add_argument("--sim", action="store_true",
 
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")
-parser.add_argument("-lr", "--learning", type=int, default=0.01,
+parser.add_argument("-lr", "--learning", type=float, default=0.01,
                     help="learning rate")
 
 parser.add_argument("-wl", "--wavelength",
@@ -35,6 +35,13 @@ parser.add_argument("-t", "--translation", type=float, required=True,
                     help="translation between measurements in mm")
 parser.add_argument("-n", "--samples_count", type=int, required=True,
                     help="number of samples taken")
+parser.add_argument("-r", "--resolution", type=int, default=1080,
+                    help="desired pixel width of square samples")
+parser.add_argument("--dir", default="l",
+                    choices=["l","r"], 
+                    help="direction of panning (l = left to right, r = right to left)")
+parser.add_argument("-ex", "--exposures", action="store_true",
+                    help="allows changing exposures per measurement. reads from exposures.txt in data set")
 
 parser.add_argument("--save", action="store_true",
                     help="save output amplitude and phase")
