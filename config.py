@@ -31,7 +31,7 @@ parser.add_argument("-m", "--mode", type=str, default="translate",
                     choices=["translate","rotate"])
 parser.add_argument("-w", "--slit_width", type=float, required=True,
                     help="slit width in mm")
-parser.add_argument("-t", "--translation", type=float, required=True,
+parser.add_argument("-t", "--translation", type=float,
                     help="translation between measurements in mm")
 parser.add_argument("-n", "--samples_count", type=int, required=True,
                     help="number of samples taken")
@@ -72,22 +72,22 @@ FPM_CONFIG = {
     "object_distance": 57.71 * mm,
 }
 
-UMD_BENCH_CONFIG = {
-    "title": "UMD Bench Microscopy",
-    # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
-    "dx": 1.845 * um,
-    "NA_obj": 0.1,
-    "NA_illum": 0.39715,
-    # "LED_spacing": 4 * mm,  # distance between LEDs
-    "LED_spacing": 4,  # Use this if calculating refraction
-    "object_distance": 450 * mm,
-    "aperture_width": 350,
-    "coded": True,
-    "bar_angle": False,
-    "Ms": [None,None,None,None,None,None,None,None],
-}
+# UMD_BENCH_CONFIG = {
+#     "title": "UMD Bench Microscopy",
+#     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
+#     "dx": 1.845 * um,
+#     "NA_obj": 0.1,
+#     "NA_illum": 0.39715,
+#     # "LED_spacing": 4 * mm,  # distance between LEDs
+#     "LED_spacing": 4,  # Use this if calculating refraction
+#     "object_distance": 450 * mm,
+#     "aperture_width": 350,
+#     "coded": True,
+#     "bar_angle": False,
+#     "Ms": [None,None,None,None,None,None,None,None],
+# }
 
-UMD_SLIT_TRANS_CONFIG = {
+UMD_SLIT_CONFIG = {
     "title": "UMD Slit Translation Microscopy",
     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
     "dx": 3.45 * um, # distance between pixels on the sample
@@ -181,13 +181,15 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     # === Define pupil mask (circular aperture) ===
     # print(f'Objective NA {config['NA_obj']:.2e}')
     config['aperture_width'] = focal_plane_dist_to_pixels(args.slit_width, config) # pixel calculation
-    config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
-    print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels')
-    print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f} pixels')
-    overlap_mm = (args.slit_width - args.translation)
-    overlap_px = config['aperture_width'] - config['translation']
-    overlap_percent = 100 * (args.slit_width - args.translation) / args.slit_width 
-    print(f'Overlap: {overlap_mm:.2f}mm {overlap_px:.2f} pixels {overlap_percent:.2f}%')
+
+    if args.mode == "translate":
+        config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
+        print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels')
+        print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f} pixels')
+        overlap_mm = (args.slit_width - args.translation)
+        overlap_px = config['aperture_width'] - config['translation']
+        overlap_percent = 100 * (args.slit_width - args.translation) / args.slit_width 
+        print(f'Overlap: {overlap_mm:.2f}mm {overlap_px:.2f} pixels {overlap_percent:.2f}%')
 
     x = torch.arange(-config['N'] // 2, config['N'] // 2)
     X, _Y = torch.meshgrid(x, x, indexing='xy')
