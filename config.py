@@ -49,18 +49,6 @@ parser.add_argument("--save", action="store_true",
 
 args = parser.parse_args()
 
-# # Microscopy configuration
-# FPM_CONFIG = {
-#     "title": "Microscopy",
-#     "dx": 1.12 * um,
-#     # "NA_obj": 0.1,
-#     "NA_obj": 0.04986,
-#     "NA_illum": 0.04986 * 4,
-#     "LED_spacing": 3.45 * mm,  # Use this if calculating refraction
-#     "aperture_diameter": 5.76 * mm,
-#     "object_distance": 57.71 * mm,
-# }
-
 # Microscopy configuration
 FPM_CONFIG = {
     "title": "UMD Pi Microscopy",
@@ -72,21 +60,6 @@ FPM_CONFIG = {
     "object_distance": 57.71 * mm,
 }
 
-# UMD_BENCH_CONFIG = {
-#     "title": "UMD Bench Microscopy",
-#     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
-#     "dx": 1.845 * um,
-#     "NA_obj": 0.1,
-#     "NA_illum": 0.39715,
-#     # "LED_spacing": 4 * mm,  # distance between LEDs
-#     "LED_spacing": 4,  # Use this if calculating refraction
-#     "object_distance": 450 * mm,
-#     "aperture_width": 350,
-#     "coded": True,
-#     "bar_angle": False,
-#     "Ms": [None,None,None,None,None,None,None,None],
-# }
-
 UMD_SLIT_CONFIG = {
     "title": "UMD Slit Translation Microscopy",
     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
@@ -97,9 +70,7 @@ UMD_SLIT_CONFIG = {
     "wavelength": 532 * nm, # green wavelength
     "f1": 125*mm, # focal length 1
     "f2": 125*mm, # focal length 2
-
 }
-
 
 UCONN_CONFIG = {
     "title": "UConn Microscopy",
@@ -157,9 +128,6 @@ def setup_config(sample: torch.Tensor, base_config: dict):
         base_config: Base optical configuration
     """
     config = base_config
-    # print(
-    #     f"Max scan distance (m) {config['object_distance'] * np.tan(np.arcsin(config['NA_illum'])):.2e}"
-    # )
 
     config['N'] = sample.shape[0]  # assume square image
     print('Object width', config['dx'] * config['N'])

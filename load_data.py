@@ -63,7 +63,6 @@ def load_umd_bench_images(data_dir):
     #     with open(f'{data_dir}/exposures.txt', 'r') as file:
     #         exposures = [float(next(file).strip()) for _ in range(N)]
     for i in range(N):
-        # print(f'{data_dir}/{i+1:04d}.jpg')
         img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
         # img = cv2.imread(f'{data_dir}/{i+1:04d}.tif', cv2.IMREAD_GRAYSCALE)/255.0
         if img.shape[0] != img.shape[1]:
@@ -89,7 +88,6 @@ def load_umd_bench_images(data_dir):
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
         shift = positions * real_config['translation']
-        # print(f'positions {shift}')
     elif args.mode == "rotate":
         with open(f'{data_dir}/angles.txt', 'r') as f:
             angles = [float(line.strip()) for line in f if line.strip()]

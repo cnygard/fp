@@ -44,11 +44,7 @@ if __name__ == "__main__" and not args.sim:
 
     if cj:
         avg = np.sum(samples_np, axis=0) / samples_np.shape[0]
-        # luh = np.r_[0, 9:24, 49:80, 121:168] # skip one layer for less overlap
-        # luh = np.r_[0, 25:48, 121:168] # skip 2 layers for even less
-        # luh = [0,1,5,10,18,27,39,52,68,85,105,126,150,175,203]  # only horizontal
-        # luh = [0, 1, 5, 10, 18]
-        luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
+        # luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
         pred = matlab_reconstruction.real(
             samples_np, Theta, num_epochs=args.epochs, config=real_config
         )
