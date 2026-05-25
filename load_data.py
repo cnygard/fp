@@ -79,7 +79,7 @@ def load_umd_bench_images(data_dir):
     size = observations_raw.shape[1]
     samples_np = observations_raw
 
-    real_config = setup_config(samples_np[0,:,:], UMD_SLIT_TRANS_CONFIG)
+    real_config = setup_config(samples_np[0,:,:], UMD_SLIT_CONFIG)
 
     if args.mode == "translate":
         width = N
@@ -91,8 +91,10 @@ def load_umd_bench_images(data_dir):
         shift = positions * real_config['translation']
         # print(f'positions {shift}')
     elif args.mode == "rotate":
-        # TODO fix later, hardcoded old values for now
-        shift = np.array([[-90, 0], [-67.5, 0], [-27, 0], [-17.5, 0], [1, 0], [12.5, 0], [30, 0], [67.5, 0]])
+        with open(f'{data_dir}/angles.txt', 'r') as f:
+            angles = [float(line.strip()) for line in f if line.strip()]
+        # angles are in tuple first element, second present for consistency
+        shift = np.array([[a, 0] for a in angles])
     return samples_np, shift, real_config
 
 def load_matlab_images(data_dir):

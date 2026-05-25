@@ -49,8 +49,6 @@ if __name__ == "__main__" and not args.sim:
         # luh = [0,1,5,10,18,27,39,52,68,85,105,126,150,175,203]  # only horizontal
         # luh = [0, 1, 5, 10, 18]
         luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
-        if args.dir == "l":
-            Theta = Theta[::-1]
         pred = matlab_reconstruction.real(
             samples_np, Theta, num_epochs=args.epochs, config=real_config
         )
