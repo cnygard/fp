@@ -24,15 +24,19 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     region = np.zeros(guessFT.shape)
 
-    kx = Theta[:,0]
-    ky = Theta[:,1]
-    dkx = 1
-    dky = 1
 
     if args.mode == "translate":
+        kx = Theta[:,0]
+        ky = Theta[:,1]
+        dkx = 1
+        dky = 1
         mask = config['M'].detach().cpu().numpy()
         mask = np.where(mask, 1.0, 0.0)
     elif args.mode == "rotate":
+        kx = np.zeros_like(Theta[:,0])
+        ky = np.zeros_like(Theta[:,1])
+        dkx = 1
+        dky = 1
         masks = np.zeros((num_samples, config['N'], config['N']))
         for i in range(num_samples):
             masks[i] = rotating_bar_mask((config['N'], config['N']), Theta[i,0], config['aperture_width'])
@@ -42,26 +46,17 @@ def reconstruction(observations, Theta, num_epochs, config):
     for _ in prog_bar:
         for i in range(num_samples):
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
+            print(f'{lx} {hx}')
             # print(f'{lx} {hx} , {ly} {hy}')
-            r = guessFT[ly:hy, lx:hx]
             if args.mode == "rotate":
                 mask = masks[i]
-            r = np.copy(guessFT[ly:hy, lx:hx])
-            # mask = mask_og * config['Ms'][i]
+            r = guessFT[ly:hy, lx:hx]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
             measurement = config['upsample']**2 * observations[i,:,:]
             low_res_guess_new = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
             low_res_guess_FT = F(low_res_guess_new)
-
-            img1 = f'{prog_bar.n:03}_{i:03}_r', np.real(np.log(r))
-            img2 = f'r_masked', np.real(np.log(r_masked))
-            img3 = f'low_res_guess', np.real(low_res_guess)
-            img4 = f'measurement', np.real(measurement)
-            img5 = f'low_res_guess_new', np.real(low_res_guess_new)
-            img6 = f'low_res_guess_FT', np.real(np.log(low_res_guess_FT))
-            debug_print(img1,img2,img3,img4,img5,img6,save=False)
 
             normalMask = np.conj(mask)/np.max((np.abs(mask))**2)
             newInfo = (low_res_guess_FT - r_masked)
