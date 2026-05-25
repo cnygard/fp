@@ -53,15 +53,31 @@ def reconstruction(observations, Theta, num_epochs, config):
             # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             # print(f'{lx} {hx} , {ly} {hy}')
+<<<<<<< Updated upstream
             r = guessFT[ly:hy, lx:hx]
             # mask = config['Ms'][i]
             if args.mode == "rotate":
                 mask = masks[i]
+||||||| Stash base
+            r = guessFT[ly:hy, lx:hx]
+            # mask = mask_og * config['Ms'][i]
+=======
+            r = np.copy(guessFT[ly:hy, lx:hx])
+            # mask = mask_og * config['Ms'][i]
+>>>>>>> Stashed changes
             r_masked = r * mask
             low_res_guess = iF(r_masked)
             measurement = config['upsample']**2 * observations[i,:,:]
-            low_res_guess = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
-            low_res_guess_FT = F(low_res_guess)
+            low_res_guess_new = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
+            low_res_guess_FT = F(low_res_guess_new)
+
+            img1 = f'{prog_bar.n:03}_{i:03}_r', np.real(np.log(r))
+            img2 = f'r_masked', np.real(np.log(r_masked))
+            img3 = f'low_res_guess', np.real(low_res_guess)
+            img4 = f'measurement', np.real(measurement)
+            img5 = f'low_res_guess_new', np.real(low_res_guess_new)
+            img6 = f'low_res_guess_FT', np.real(np.log(low_res_guess_FT))
+            debug_print(img1,img2,img3,img4,img5,img6,save=False)
 
             normalMask = np.conj(mask)/np.max((np.abs(mask))**2)
             newInfo = (low_res_guess_FT - r_masked)
