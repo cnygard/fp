@@ -16,16 +16,12 @@ def reconstruction(observations, Theta, num_epochs, config):
     guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[7,:,:])
     # guess = np.sum(observations, axis=0) / observations.shape[0]
-
     print(guess.shape)
-
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
                         guess.shape[1] * config['upsample']))
     guessFT = F(guess)
 
-    # debug view
-    # region = np.copy(guessFT)
     region = np.zeros(guessFT.shape)
 
     kx = Theta[:,0]
@@ -40,33 +36,21 @@ def reconstruction(observations, Theta, num_epochs, config):
         masks = np.zeros((num_samples, config['N'], config['N']))
         for i in range(num_samples):
             masks[i] = rotating_bar_mask((config['N'], config['N']), Theta[i,0], config['aperture_width'])
-    # mask_og = np.copy(mask)
-    # blursize = 45
-    # mask = cv2.GaussianBlur(mask, (blursize,blursize), 0)
 
-    # need angle per measurement to reconstruct
-    # call replace-angle on sample
     prog_bar = tqdm(range(2))
     first = True
     for _ in prog_bar:
         for i in range(num_samples):
-            # image = sample # reproject current estimate to same angle as this observation
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             # print(f'{lx} {hx} , {ly} {hy}')
-<<<<<<< Updated upstream
             r = guessFT[ly:hy, lx:hx]
-            # mask = config['Ms'][i]
             if args.mode == "rotate":
                 mask = masks[i]
-||||||| Stash base
-            r = guessFT[ly:hy, lx:hx]
-            # mask = mask_og * config['Ms'][i]
-=======
             r = np.copy(guessFT[ly:hy, lx:hx])
             # mask = mask_og * config['Ms'][i]
->>>>>>> Stashed changes
             r_masked = r * mask
             low_res_guess = iF(r_masked)
+
             measurement = config['upsample']**2 * observations[i,:,:]
             low_res_guess_new = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
             low_res_guess_FT = F(low_res_guess_new)
@@ -135,7 +119,8 @@ def reconstruction(observations, Theta, num_epochs, config):
             countimg += 1
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
             r = guessFT[ly:hy, lx:hx]
-            # mask = config['Ms'][i]
+            if args.mode == "rotate":
+                mask = masks[i]
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
