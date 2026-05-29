@@ -2,12 +2,16 @@ import torch
 import numpy as np
 
 import argparse
+import tomllib
 
 from util import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("data_name",
                     help="location of data relative to Data directory")
+init_args, remaining_args = parser.parse_known_args()
+remaining_args.append(init_args.data_name)
+
 parser.add_argument("-s", "--source", default="umd_bench",
                     choices=["umd_bench","umd_pi","matlab","waller","sim"], 
                     help="select camera source that data was taken from (default: umd_bench)")
@@ -29,11 +33,11 @@ parser.add_argument("-o", "--observations", action="store_true",
 
 parser.add_argument("-m", "--mode", type=str, default="translate",
                     choices=["translate","rotate"])
-parser.add_argument("-w", "--slit_width", type=float, required=True,
+parser.add_argument("-w", "--slit_width", type=float,
                     help="slit width in mm")
 parser.add_argument("-t", "--translation", type=float,
                     help="translation between measurements in mm")
-parser.add_argument("-n", "--samples_count", type=int, required=True,
+parser.add_argument("-n", "--samples_count", type=int,
                     help="number of samples taken")
 parser.add_argument("-r", "--resolution", type=int, default=1080,
                     help="desired pixel width of square samples")
@@ -44,12 +48,19 @@ parser.add_argument("-ex", "--exposures", action="store_true",
                     help="allows changing exposures per measurement. reads from exposures.txt in data set")
 parser.add_argument("-u", "--upsample", type=int, default=4,
                     help="amount to upscale output width")
+parser.add_argument("--momentum", type=int,
+                    help="use momentum and specify epochs")
+parser.add_argument("--file_extension", default=".tif",
+                    help="specify file extention for data")
+
 
 parser.add_argument("--save", action="store_true",
                     help="save output amplitude and phase")
 
-
-args = parser.parse_args()
+with open(f'{init_args.data_name}/params.toml', "rb") as f:
+    toml_defaults = tomllib.load(f)
+parser.set_defaults(**toml_defaults)
+args = parser.parse_args(remaining_args)
 
 # Microscopy configuration
 FPM_CONFIG = {

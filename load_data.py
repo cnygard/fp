@@ -64,7 +64,7 @@ def load_umd_bench_images(data_dir):
     #         exposures = [float(next(file).strip()) for _ in range(N)]
     for i in range(N):
         # img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
-        img = cv2.imread(f'{data_dir}/{i+1:04d}.tif', cv2.IMREAD_GRAYSCALE)/255.0
+        img = cv2.imread(f'{data_dir}/{i+1:04d}{args.file_extension}', cv2.IMREAD_GRAYSCALE)/255.0
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
@@ -159,9 +159,9 @@ def load_waller_images(data_dir):
     print(Theta)
     return samples_np, Theta, real_config
 
-def load_sim_images(data_file):
+def load_sim_images(data_dir):
     W = args.resolution
-    sample = cv2.imread(data_file, 0).astype(np.float32)
+    sample = cv2.imread(f'{data_dir}/{args.data_name.replace('Data/','')}{args.file_extension}', 0).astype(np.float32)
     sim_config = setup_config(
         torch.zeros(W, W), UMD_SLIT_CONFIG
     )
