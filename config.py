@@ -12,8 +12,8 @@ parser.add_argument("-s", "--source", default="umd_bench",
                     choices=["umd_bench","umd_pi","matlab","waller","sim"], 
                     help="select camera source that data was taken from (default: umd_bench)")
 
-parser.add_argument("--sim", action="store_true",
-                    help="run in simulation mode")
+# parser.add_argument("--sim", action="store_true",
+#                     help="run in simulation mode")
 
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")

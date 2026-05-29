@@ -15,9 +15,8 @@ from util import *
 
 cj = True  # use CJ's reconstruction from Matlab code
 
-print(f"Sim: {args.sim}")
 # ===== Real data =====
-if __name__ == "__main__" and not args.sim:
+if __name__ == "__main__":
     data_loc = args.data_name
     if args.source == "umd_pi":
         samples_np, Theta, real_config = load_umd_pi_images(data_loc)
