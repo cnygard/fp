@@ -63,8 +63,8 @@ def load_umd_bench_images(data_dir):
     #     with open(f'{data_dir}/exposures.txt', 'r') as file:
     #         exposures = [float(next(file).strip()) for _ in range(N)]
     for i in range(N):
-        img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
-        # img = cv2.imread(f'{data_dir}/{i+1:04d}.tif', cv2.IMREAD_GRAYSCALE)/255.0
+        # img = cv2.imread(f'{data_dir}/{i+1:04d}.jpg', cv2.IMREAD_GRAYSCALE)/255.0
+        img = cv2.imread(f'{data_dir}/{i+1:04d}.tif', cv2.IMREAD_GRAYSCALE)/255.0
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img.shape) - np.min(img.shape)) / 2)
             right = left + np.min(img.shape)
@@ -110,7 +110,7 @@ def load_matlab_images(data_dir):
     real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
 
     # === Load LED locations ===
-    LED_dir = 'Data/'+args.name+'_LED_locations'
+    LED_dir = args.name+'_LED_locations'
     LED_raw = scipy.io.loadmat(LED_dir)
     print(LED_raw.keys())
     xlocation, ylocation = (torch.from_numpy(LED_raw['xlocation_s'].astype(float)),
@@ -158,3 +158,63 @@ def load_waller_images(data_dir):
     print(rearrange(positions, order))
     print(Theta)
     return samples_np, Theta, real_config
+
+def load_sim_images(data_file):
+    W = args.resolution
+    sample = cv2.imread(data_file, 0).astype(np.float32)
+    sim_config = setup_config(
+        torch.zeros(W, W), UMD_SLIT_CONFIG
+    )
+    sample = cv2.resize(sample, (W*sim_config['upsample'],
+                                 W*sim_config['upsample'])) / 255.0
+
+    N = args.samples_count
+    observations = np.empty((N, W, W))
+
+    if args.mode == "translate":
+        center = N // 2
+        location = np.arange(N)
+        xlocation = location - center
+        ylocation = np.zeros_like(xlocation)
+        positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
+        shift = positions * -1 * sim_config['translation']
+        mask = sim_config['M'].detach().cpu().numpy()
+        mask = np.where(mask, 1.0, 0.0)
+    elif args.mode == "rotate":
+        # TODO fix later, hardcoded old values for now
+        rot = np.arange(N) * 180 / N - 90
+        shift = np.stack((rot,rot),axis=1)
+        # unfinished, pass rotation angles as Theta?
+        masks = np.zeros((N, sim_config['N'], sim_config['N']))
+        for i in range(N):
+            masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], sim_config['aperture_width'])
+
+    if args.mode == "translate":
+        kx = shift[:,0]
+        ky = shift[:,1]
+        dkx = 1
+        dky = 1
+    elif args.mode == "rotate":
+        kx = np.zeros_like(shift[:,0])
+        ky = np.zeros_like(shift[:,1])
+        dkx = 1
+        dky = 1
+
+    O = F(sample)
+
+    for i in range(N):
+        lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
+        # mask = sim_config['Ms'][i]
+        # mask = np.where(mask, 1.0, 0.0)
+        if args.mode == "translate":
+            masked = O[ly:hy, lx:hx] * mask
+        elif args.mode == "rotate":
+            masked = O[ly:hy, lx:hx] * masks[i]
+        observations[i, :, :] = np.abs(iF(masked))
+        observations[i, :, :] = np.abs(iF(masked)) ** 2
+        # plt.subplot(1,2,1)
+        # plt.imshow(observations[i])
+        # plt.subplot(1,2,2)
+        # plt.imshow(np.abs(np.log(masked)))
+        # plt.show()
+    return observations, shift, sim_config

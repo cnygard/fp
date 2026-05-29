@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("data_name",
                     help="location of data relative to Data directory")
 parser.add_argument("-s", "--source", default="umd_bench",
-                    choices=["umd_bench","umd_pi","matlab","waller"], 
+                    choices=["umd_bench","umd_pi","matlab","waller","sim"], 
                     help="select camera source that data was taken from (default: umd_bench)")
 
 parser.add_argument("--sim", action="store_true",
@@ -42,6 +42,8 @@ parser.add_argument("--dir", default="l",
                     help="direction of panning (l = left to right, r = right to left)")
 parser.add_argument("-ex", "--exposures", action="store_true",
                     help="allows changing exposures per measurement. reads from exposures.txt in data set")
+parser.add_argument("-u", "--upsample", type=int, default=4,
+                    help="amount to upscale output width")
 
 parser.add_argument("--save", action="store_true",
                     help="save output amplitude and phase")
@@ -130,7 +132,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config = base_config
 
     config['N'] = sample.shape[0]  # assume square image
-    print('Object width', config['dx'] * config['N'])
+    print(f'Object width {config['dx'] * config['N']} m')
     if args.wavelength == 'red':
         config['wavelength'] = 630 * nm  # red wavelength
     elif args.wavelength == 'green':
@@ -142,7 +144,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     print(f'Wavelength {args.wavelength} {config['wavelength']}')
     config['k'] = 2 * np.pi / config['wavelength']  # wave number
 
-    config['upsample'] = 4 # ratio to scale output image
+    config['upsample'] = args.upsample # ratio to scale output image
     config['out_dx'] = config['upsample'] / config['dx'] # pixel size in output
     config['out_N'] = config['N'] * config['upsample'] # width of output image
 
@@ -152,12 +154,16 @@ def setup_config(sample: torch.Tensor, base_config: dict):
 
     if args.mode == "translate":
         config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
-        print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels')
-        print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f} pixels')
+        print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels {100*config['aperture_width']/config['out_N']:.2f}% of output')
+        print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f}px')
         overlap_mm = (args.slit_width - args.translation)
         overlap_px = config['aperture_width'] - config['translation']
         overlap_percent = 100 * (args.slit_width - args.translation) / args.slit_width 
-        print(f'Overlap: {overlap_mm:.2f}mm {overlap_px:.2f} pixels {overlap_percent:.2f}%')
+        print(f'Overlap: {overlap_mm:.2f}mm {overlap_px:.2f}px {overlap_percent:.2f}%')
+        coverage_mm = args.slit_width + (args.slit_width - overlap_mm) * (args.samples_count - 1)
+        coverage_px = config['aperture_width'] + (config['aperture_width'] - overlap_px) * (args.samples_count - 1)
+        coverage_percent = 100 * coverage_px / config['out_N']
+        print(f'Coverage: {coverage_mm:.2f}mm {coverage_px:.2f}px {coverage_percent:.2f}%')
 
     x = torch.arange(-config['N'] // 2, config['N'] // 2)
     X, _Y = torch.meshgrid(x, x, indexing='xy')

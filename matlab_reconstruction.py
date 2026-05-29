@@ -13,9 +13,9 @@ def reconstruction(observations, Theta, num_epochs, config):
  
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
-    guess = np.zeros((observations.shape[1], observations.shape[2]))
+    # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[7,:,:])
-    # guess = np.sum(observations, axis=0) / observations.shape[0]
+    guess = np.sum(observations, axis=0) / observations.shape[0]
     print(guess.shape)
     guess = cv2.resize(guess,
                        (guess.shape[0] * config['upsample'],
@@ -23,7 +23,6 @@ def reconstruction(observations, Theta, num_epochs, config):
     guessFT = F(guess)
 
     region = np.zeros(guessFT.shape)
-
 
     if args.mode == "translate":
         kx = Theta[:,0]
@@ -46,7 +45,6 @@ def reconstruction(observations, Theta, num_epochs, config):
     for _ in prog_bar:
         for i in range(num_samples):
             lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
-            print(f'{lx} {hx}')
             # print(f'{lx} {hx} , {ly} {hy}')
             if args.mode == "rotate":
                 mask = masks[i]
