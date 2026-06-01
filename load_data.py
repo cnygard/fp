@@ -190,7 +190,7 @@ def load_sim_images(data_dir):
     elif args.mode == "traditional":
         Nx = np.sqrt(N)
         center = Nx // 2
-        location = np.arange(N)
+        location = np.arange(Nx)
         xlocation = location - center
         xs,ys = np.meshgrid(xlocation, xlocation)
         positions = np.stack([xs,ys], axis=-1).reshape(-1,2)

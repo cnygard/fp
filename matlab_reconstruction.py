@@ -91,7 +91,7 @@ def reconstruction(observations, Theta, num_epochs, config):
     if args.momentum:
         # momentum
         countimg = 0
-        tt = np.ones(num_epochs * num_samples)
+        tt = np.ones(args.momentum * num_samples)
 
         m, n = guessFT.shape
         vobj0 = np.zeros((m, n))
