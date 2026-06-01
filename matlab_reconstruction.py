@@ -24,7 +24,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
     region = np.zeros(guessFT.shape)
 
-    if args.mode == "translate":
+    if args.mode == "translate" or args.mode == "traditional":
         kx = Theta[:,0]
         ky = Theta[:,1]
         dkx = 1
@@ -78,15 +78,14 @@ def reconstruction(observations, Theta, num_epochs, config):
                 # tmp = np.abs(np.sqrt(np.log(F(observations[i,:,:]))))
                 # img2 = f'{prog_bar.n:03}_{i:03}_', tmp - mask
                 img2 = f'{prog_bar.n:03}_{i:03}_Guess', np.abs(guess)
-                img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.log(region))
+                img3 = f'{prog_bar.n:03}_{i:03}_GuessF', np.abs(np.sqrt(np.log(guessFT)))
                 # img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.sqrt(np.log(region)))
                 # img4 = f'{prog_bar.n:03}_{i:03}_Mask', normalMask
-                img4 = f'{prog_bar.n:03}_{i:03}_Whole', np.abs(np.sqrt(np.log(guessFT)))
+                img4 = f'{prog_bar.n:03}_{i:03}_Region', np.abs(np.log(region))
                 img5 = f'{prog_bar.n:03}_{i:03}_New', np.abs(np.sqrt(np.log(newInfo)))
                 img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.abs(np.sqrt(np.log(normalMask * newInfo)))
                 img7 = f'black', np.abs(np.log(iF(black)))
                 debug_print(img1,img2,img3,img4,img5,img6,save=False)
-                # debug_print(img7,img1,img2,save=False)
         first = False
 
     if args.momentum:

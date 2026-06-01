@@ -161,7 +161,7 @@ def load_waller_images(data_dir):
 
 def load_sim_images(data_dir):
     W = args.resolution
-    sample = cv2.imread(f'{data_dir}/{args.data_name.replace('Data/','')}{args.file_extension}', 0).astype(np.float32)
+    sample = cv2.imread(f'{data_dir}/{args.data_name}{args.file_extension}', 0).astype(np.float32)
     sim_config = setup_config(
         torch.zeros(W, W), UMD_SLIT_CONFIG
     )
@@ -181,15 +181,24 @@ def load_sim_images(data_dir):
         mask = sim_config['M'].detach().cpu().numpy()
         mask = np.where(mask, 1.0, 0.0)
     elif args.mode == "rotate":
-        # TODO fix later, hardcoded old values for now
         rot = np.arange(N) * 180 / N - 90
         shift = np.stack((rot,rot),axis=1)
         # unfinished, pass rotation angles as Theta?
         masks = np.zeros((N, sim_config['N'], sim_config['N']))
         for i in range(N):
             masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], sim_config['aperture_width'])
+    elif args.mode == "traditional":
+        Nx = np.sqrt(N)
+        center = Nx // 2
+        location = np.arange(Nx)
+        xlocation = location - center
+        xs,ys = np.meshgrid(xlocation, xlocation)
+        positions = np.stack([xs,ys], axis=-1).reshape(-1,2)
+        shift = positions * -1 * sim_config['translation']
+        mask = sim_config['M'].detach().cpu().numpy()
+        mask = np.where(mask, 1.0, 0.0)
 
-    if args.mode == "translate":
+    if args.mode == "translate" or args.mode == "traditional":
         kx = shift[:,0]
         ky = shift[:,1]
         dkx = 1
@@ -204,9 +213,7 @@ def load_sim_images(data_dir):
 
     for i in range(N):
         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
-        # mask = sim_config['Ms'][i]
-        # mask = np.where(mask, 1.0, 0.0)
-        if args.mode == "translate":
+        if args.mode == "translate" or args.mode == "traditional":
             masked = O[ly:hy, lx:hx] * mask
         elif args.mode == "rotate":
             masked = O[ly:hy, lx:hx] * masks[i]

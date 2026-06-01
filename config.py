@@ -6,12 +6,15 @@ import tomllib
 
 from util import *
 
-parser = argparse.ArgumentParser()
-parser.add_argument("data_name",
+init_parser = argparse.ArgumentParser(add_help=False)
+init_parser.add_argument("data_dir", nargs='?',
                     help="location of data relative to Data directory")
-init_args, remaining_args = parser.parse_known_args()
-remaining_args.append(init_args.data_name)
+init_args, remaining_args = init_parser.parse_known_args()
 
+parser = argparse.ArgumentParser()
+parser.add_argument("data_dir",
+                    help="location of data to be reconstructed")
+parser.add_argument("--data_name", help="select file name of data (for sim)")
 parser.add_argument("-s", "--source", default="umd_bench",
                     choices=["umd_bench","umd_pi","matlab","waller","sim"], 
                     help="select camera source that data was taken from (default: umd_bench)")
@@ -21,31 +24,28 @@ parser.add_argument("-s", "--source", default="umd_bench",
 
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")
-parser.add_argument("-lr", "--learning", type=float, default=0.01,
+parser.add_argument("-l", "--learning", type=float, default=0.01,
                     help="learning rate")
 
-parser.add_argument("-wl", "--wavelength",
-                    choices=["red","green","blue"])
+parser.add_argument("--wavelength", choices=["red","green","blue"])
 
 parser.add_argument("-d", "--debug", action="store_true")
 parser.add_argument("-o", "--observations", action="store_true",
                     help="show observations")
 
 parser.add_argument("-m", "--mode", type=str, default="translate",
-                    choices=["translate","rotate"])
-parser.add_argument("-w", "--slit_width", type=float,
-                    help="slit width in mm")
+                    choices=["translate","rotate", "traditional"])
+parser.add_argument("-w", "--slit_width", type=float, help="slit width in mm")
 parser.add_argument("-t", "--translation", type=float,
                     help="translation between measurements in mm")
 parser.add_argument("-n", "--samples_count", type=int,
                     help="number of samples taken")
 parser.add_argument("-r", "--resolution", type=int, default=1080,
                     help="desired pixel width of square samples")
-parser.add_argument("--dir", default="l",
-                    choices=["l","r"], 
-                    help="direction of panning (l = left to right, r = right to left)")
-parser.add_argument("-ex", "--exposures", action="store_true",
-                    help="allows changing exposures per measurement. reads from exposures.txt in data set")
+# parser.add_argument("--dir", default="l", choices=["l","r"], 
+#                     help="direction of panning (l = left to right, r = right to left)")
+# parser.add_argument("-ex", "--exposures", action="store_true",
+#                     help="allows changing exposures per measurement. reads from exposures.txt in data set")
 parser.add_argument("-u", "--upsample", type=int, default=4,
                     help="amount to upscale output width")
 parser.add_argument("--momentum", type=int,
@@ -53,13 +53,14 @@ parser.add_argument("--momentum", type=int,
 parser.add_argument("--file_extension", default=".tif",
                     help="specify file extention for data")
 
-
 parser.add_argument("--save", action="store_true",
                     help="save output amplitude and phase")
 
-with open(f'{init_args.data_name}/params.toml', "rb") as f:
-    toml_defaults = tomllib.load(f)
-parser.set_defaults(**toml_defaults)
+if init_args.data_dir:
+  remaining_args.append(init_args.data_dir.removesuffix('/'))
+  with open(f'{init_args.data_dir}/params.toml', "rb") as f:
+      toml_defaults = tomllib.load(f)
+  parser.set_defaults(**toml_defaults)
 args = parser.parse_args(remaining_args)
 
 # Microscopy configuration
@@ -163,7 +164,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     # print(f'Objective NA {config['NA_obj']:.2e}')
     config['aperture_width'] = focal_plane_dist_to_pixels(args.slit_width, config) # pixel calculation
 
-    if args.mode == "translate":
+    if args.mode == "translate" or args.mode == "traditional":
         config['translation'] = focal_plane_dist_to_pixels(args.translation,config)
         print(f'Slit width: {args.slit_width:.2f}mm {config['aperture_width']:.2f} pixels {100*config['aperture_width']/config['out_N']:.2f}% of output')
         print(f'Aperture translation: {args.translation:.2f}mm {config['translation']:.2f}px')
@@ -177,7 +178,12 @@ def setup_config(sample: torch.Tensor, base_config: dict):
         print(f'Coverage: {coverage_mm:.2f}mm {coverage_px:.2f}px {coverage_percent:.2f}%')
 
     x = torch.arange(-config['N'] // 2, config['N'] // 2)
-    X, _Y = torch.meshgrid(x, x, indexing='xy')
-    config['M'] = np.abs(X) < config['aperture_width']/2 # bar aperture
+    X, Y = torch.meshgrid(x, x, indexing='xy')
+    if args.mode == "traditional":
+        R = torch.sqrt(X**2 + Y**2)
+        config['M'] = R < config['aperture_width']/2
+    else:
+        config['M'] = np.abs(X) < config['aperture_width']/2 # bar aperture
 
+    print(f'Learning rate: {args.learning}')
     return config

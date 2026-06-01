@@ -13,11 +13,9 @@ from tqdm import tqdm
 
 from util import *
 
-cj = True  # use CJ's reconstruction from Matlab code
-
 # ===== Real data =====
 if __name__ == "__main__":
-    data_loc = args.data_name
+    data_loc = args.data_dir
     if args.source == "umd_pi":
         samples_np, Theta, real_config = load_umd_pi_images(data_loc)
     elif args.source == "umd_bench":
@@ -44,40 +42,31 @@ if __name__ == "__main__":
             plt.tight_layout(pad=0, w_pad=0, h_pad=0)
             plt.show()
 
-    if cj:
+    # calc resized average
+    upy = samples_np.shape[1] * real_config['upsample']
+    upx = samples_np.shape[2] * real_config['upsample']
+    samples_resized = np.empty((samples_np.shape[0], upy, upx))
+    for i in range(samples_resized.shape[0]):
+        samples_resized[i,:,:] = cv2.resize(samples_np[i,:,:], (upy,upx))
+    avg = np.sum(samples_resized, axis=0) / samples_resized.shape[0]
+    # avg = np.sum(samples_np, axis=0) / samples_np.shape[0]
 
-        upy = samples_np.shape[1] * real_config['upsample']
-        upx = samples_np.shape[2] * real_config['upsample']
-        samples_resized = np.empty((samples_np.shape[0], upy, upx))
-        for i in range(samples_resized.shape[0]):
-            samples_resized[i,:,:] = cv2.resize(samples_np[i,:,:], (upy,upx))
-        avg = np.sum(samples_resized, axis=0) / samples_resized.shape[0]
+    # luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
 
-        # avg = np.sum(samples_np, axis=0) / samples_np.shape[0]
-        # luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
-        pred = matlab_reconstruction.real(
-            samples_np, Theta, num_epochs=args.epochs, config=real_config
-        )
-        print(f"Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}")
-        if args.save:
-            cv2.imwrite('Data/output_amplitude.jpg', np.abs(pred)*255)
-            cv2.imwrite('Data/output_phase.jpg', np.angle(pred)*255)
-            print('Results saved to Data/output_amplitdue.jpg and Data/output_phase.jpg')
-        # img1 = 'First Measurement', samples_np[0,:,:]
-        # img1 = 'Middle Measurement', samples_np[samples_np.shape[0]//2,:,:]
-        img1 = "Averaged", avg
-        img2 = "Amplitude", np.abs(pred)
-        img3 = "Phase", np.angle(pred)
-        debug_print(img1, img2, img3)
-    else:
-        pred = ml_reconstruction.real(
-            samples, Theta, num_epochs=args.epochs, config=real_config
-        )
-        print(f"Samples shape {samples[0,:,:].shape}, Result shape {pred.shape}")
-        img1 = "First Measurement", samples[0, :, :]
-        img2 = "FP Reconstruction", pred.detach().cpu().numpy().astype("float")
-        debug_print(img1, img2)
-
+    pred = matlab_reconstruction.real(
+        samples_np, Theta, num_epochs=args.epochs, config=real_config
+    )
+    print(f"Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}")
+    if args.save:
+        cv2.imwrite(f'{args.data_dir}/{args.data_name}_amplitude{args.file_extension}', np.abs(pred)*255)
+        cv2.imwrite(f'{args.data_dir}/{args.data_name}_phase{args.file_extension}', np.angle(pred)*255)
+        print('Results saved to Data/output_amplitdue.jpg and Data/output_phase.jpg')
+    # img1 = 'First Measurement', samples_np[0,:,:]
+    # img1 = 'Middle Measurement', samples_np[samples_np.shape[0]//2,:,:]
+    img1 = "Averaged", avg
+    img2 = "Amplitude", np.abs(pred)
+    img3 = "Phase", np.angle(pred)
+    debug_print(img1, img2, img3)
 
 # # ===== Simulation =====
 # elif __name__ == "__main__" and args.sim:
