@@ -87,7 +87,7 @@ def load_umd_bench_images(data_dir):
         xlocation = location - center
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * real_config['translation']
+        shift = positions * -1 * real_config['translation']
     elif args.mode == "rotate":
         with open(f'{data_dir}/angles.txt', 'r') as f:
             angles = [float(line.strip()) for line in f if line.strip()]
@@ -190,7 +190,7 @@ def load_sim_images(data_dir):
     elif args.mode == "traditional":
         Nx = np.sqrt(N)
         center = Nx // 2
-        location = np.arange(Nx)
+        location = np.arange(N)
         xlocation = location - center
         xs,ys = np.meshgrid(xlocation, xlocation)
         positions = np.stack([xs,ys], axis=-1).reshape(-1,2)

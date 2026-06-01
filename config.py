@@ -24,7 +24,7 @@ parser.add_argument("-s", "--source", default="umd_bench",
 
 parser.add_argument("-e", "--epochs", type=int, default=10,
                     help="select number of epochs to run momentum")
-parser.add_argument("-l", "--learning", type=float, default=0.01,
+parser.add_argument("-l", "--learning", type=float, default=0.1,
                     help="learning rate")
 
 parser.add_argument("--wavelength", choices=["red","green","blue"])
@@ -58,7 +58,7 @@ parser.add_argument("--save", action="store_true",
 
 if init_args.data_dir:
   remaining_args.append(init_args.data_dir.removesuffix('/'))
-  with open(f'{init_args.data_dir}/params.toml', "rb") as f:
+  with open(f'{init_args.data_dir}/config.toml', "rb") as f:
       toml_defaults = tomllib.load(f)
   parser.set_defaults(**toml_defaults)
 args = parser.parse_args(remaining_args)
