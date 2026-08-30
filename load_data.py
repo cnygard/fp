@@ -87,12 +87,47 @@ def load_umd_bench_images(data_dir):
         xlocation = location - center
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * -1 * real_config['translation']
+        shift = positions * -1 * real_config['translation_px']
     elif args.mode == "rotate":
         with open(f'{data_dir}/angles.txt', 'r') as f:
             angles = [float(line.strip()) for line in f if line.strip()]
         # angles are in tuple first element, second present for consistency
         shift = np.array([[a, 0] for a in angles])
+    return samples_np, shift, real_config
+
+def load_array_sim_images(data_dir):
+    N = args.samples_count
+    size = args.resolution
+    observations_raw = np.empty((N,size,size))
+    for i in range(N):
+        fname = f'{data_dir}/{i:04d}{args.file_extension}'
+        img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)/255.0
+        if img.shape[0] != img.shape[1]:
+            left = int((np.max(img.shape) - np.min(img.shape)) / 2)
+            right = left + np.min(img.shape)
+            resized = cv2.resize(img[:,left:right], (size,size))
+            amplitude = np.sqrt(resized)
+            observations_raw[i,:,:] = amplitude
+        else:
+            observations_raw[i,:,:] = img
+
+    samples_np = observations_raw
+
+    real_config = setup_config(samples_np[0,:,:], ARRAY_CONFIG)
+
+    width = np.sqrt(N)
+    center = 2
+    location = np.arange(width)
+    xlocation = location - center
+    ylocation = xlocation
+    y,x = np.meshgrid(ylocation, xlocation)
+    positions = np.stack([x,y], axis=-1).reshape(-1,2) # CJCJCJ this sucks
+    shift = positions * args.translation * -1
+    print(f"Samples shape: {samples_np.shape} Theta shape: {shift.shape}")
+    order = spiral((center,center),int(width))
+    shift = rearrange(shift, order)
+    # samples_np = rearrange(samples_np, order)
+
     return samples_np, shift, real_config
 
 def load_matlab_images(data_dir):
@@ -177,7 +212,7 @@ def load_sim_images(data_dir):
         xlocation = location - center
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * -1 * sim_config['translation']
+        shift = positions * -1 * sim_config['translation_px']
         mask = sim_config['M'].detach().cpu().numpy()
         mask = np.where(mask, 1.0, 0.0)
     elif args.mode == "rotate":
@@ -186,7 +221,7 @@ def load_sim_images(data_dir):
         # unfinished, pass rotation angles as Theta?
         masks = np.zeros((N, sim_config['N'], sim_config['N']))
         for i in range(N):
-            masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], sim_config['aperture_width'])
+            masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], sim_config['aperture_diameter_px'])
     elif args.mode == "traditional":
         Nx = np.sqrt(N)
         center = Nx // 2
@@ -194,7 +229,7 @@ def load_sim_images(data_dir):
         xlocation = location - center
         xs,ys = np.meshgrid(xlocation, xlocation)
         positions = np.stack([xs,ys], axis=-1).reshape(-1,2)
-        shift = positions * -1 * sim_config['translation']
+        shift = positions * -1 * sim_config['translation_px']
         mask = sim_config['M'].detach().cpu().numpy()
         mask = np.where(mask, 1.0, 0.0)
 

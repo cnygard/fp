@@ -20,6 +20,8 @@ if __name__ == "__main__":
         samples_np, Theta, real_config = load_umd_pi_images(data_loc)
     elif args.source == "umd_bench":
         samples_np, Theta, real_config = load_umd_bench_images(data_loc)
+    elif args.source == "array_sim":
+        samples_np, Theta, real_config = load_array_sim_images(data_loc)
     elif args.source == "matlab":
         samples_np, Theta, real_config = load_matlab_images(data_loc)
     elif args.source == "waller":
@@ -52,15 +54,20 @@ if __name__ == "__main__":
     # avg = np.sum(samples_np, axis=0) / samples_np.shape[0]
 
     # luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
+    # luh = [7,6,8,5,9,4,10,3,11,2,12,1,13,0,14]
 
     pred = matlab_reconstruction.real(
         samples_np, Theta, num_epochs=args.epochs, config=real_config
     )
     print(f"Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}")
     if args.save:
-        cv2.imwrite(f'{args.data_dir}/{args.data_name}_amplitude{args.file_extension}', np.abs(pred)*255)
-        cv2.imwrite(f'{args.data_dir}/{args.data_name}_phase{args.file_extension}', np.angle(pred)*255)
-        print('Results saved to Data/output_amplitdue.jpg and Data/output_phase.jpg')
+        name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr'
+        abs = np.abs(pred)
+        angle = np.angle(pred)
+        cv2.imwrite(f'{name_thing}amplitude.jpg', (abs/np.max(abs))*255)
+        # plt.imsave(f'{name_thing}phase.jpg', (angle/np.max(angle))*255, cmap='inferno')
+        cv2.imwrite(f'{name_thing}phase.jpg', (angle/np.max(angle))*255)
+        print(f'Results saved to {name_thing}amplitdue.jpg and {name_thing}phase.jpg')
     # img1 = 'First Measurement', samples_np[0,:,:]
     # img1 = 'Middle Measurement', samples_np[samples_np.shape[0]//2,:,:]
     img1 = "Averaged", avg
@@ -89,7 +96,7 @@ if __name__ == "__main__":
 #         xlocation = location - center
 #         ylocation = np.zeros_like(xlocation)
 #         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-#         shift = positions * -1 * sim_config['translation']
+#         shift = positions * -1 * sim_config['translation_px']
 #         mask = sim_config['M'].detach().cpu().numpy()
 #         mask = np.where(mask, 1.0, 0.0)
 #     elif args.mode == "rotate":

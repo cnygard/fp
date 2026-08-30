@@ -161,5 +161,5 @@ def kspace_parameterize(Theta, config):
     return kx,ky,dkx,dky
 
 def focal_plane_dist_to_pixels(dist_mm, config): 
-    return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["f1"])
+    return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["f1"]) # CJCJCJ fix wavelength thing
 
