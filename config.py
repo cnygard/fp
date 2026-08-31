@@ -128,16 +128,16 @@ FPI_CONFIG = {
     "NA_illum": 1.5e-6,
 }
 
-def setup_config(sample: torch.Tensor, base_config: dict):
+def setup_config(sample_width: int, base_config: dict):
     """Sets up experiment parameters
     Args:
-        sample: The sample image
+        sample_width: The pixel width of the samples
         base_config: Base optical configuration
     """
     config = base_config
 
-    config['N'] = sample.shape[0]  # assume square image
-    print(f'Object width {config['dx'] * config['N']} m')
+    config['N'] = sample_width  # assume square image
+    print(f'Object width {config['dx'] * config['N'] / mm:.2f} mm')
     if args.wavelength == 'red':
         config['wavelength'] = 630 * nm  # red wavelength
     elif args.wavelength == 'green':
@@ -146,7 +146,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
         config['wavelength'] = 475 * nm  # blue wavelength
     elif args.wavelength == None and not 'wavelength' in config:
         config['wavelength'] = 532 * nm  # green wavelength
-    print(f'Wavelength {args.wavelength} {config['wavelength']}')
+    print(f'Wavelength {args.wavelength} {config['wavelength'] / nm} nm')
     if args.mode == 'tri-color':
         config['k'] = [1,2,3]
         for w in range(len(config['wavelength'])):
@@ -164,7 +164,7 @@ def setup_config(sample: torch.Tensor, base_config: dict):
     config['aperture_diameter_px'] = focal_plane_dist_to_pixels(args.aperture_diameter, config) # pixel calculation
 
     config['translation_px'] = focal_plane_dist_to_pixels(args.translation,config)
-    print(f'Slit width: {args.aperture_diameter:.2f}mm {config['aperture_diameter_px']:.2f} pixels {100*config['aperture_diameter_px']/config['out_N']:.2f}% of output')
+    print(f'Aperture diameter: {args.aperture_diameter:.2f}mm {config['aperture_diameter_px']:.2f} pixels {100*config['aperture_diameter_px']/config['out_N']:.2f}% of output')
     print(f'Aperture translation: {args.translation:.2f}mm {config['translation_px']:.2f}px')
     radius_px = config['aperture_diameter_px']/2.0
     overlap_area_px = 2*(radius_px**2)*np.arccos(config['translation_px']/(2*radius_px))-(config['translation_px']/2)*np.sqrt(4*(radius_px**2)-(config['translation_px']**2))

@@ -13,7 +13,7 @@ if __name__ == "__main__":
     sample = sample / 255.0  # normalize
     sample = torch.from_numpy(sample)
 
-    config = setup_config(sample, base_config=FPM_CONFIG)
+    config = setup_config(sample.shape[0], base_config=FPM_CONFIG)
 
     theta_max = np.rad2deg(np.arcsin(config["NA_illum"]))
     print(f"Max rotation (deg) {theta_max:.2e}")

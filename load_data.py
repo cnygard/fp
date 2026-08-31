@@ -40,7 +40,7 @@ def load_umd_pi_images(data_dir):
     size = observations_raw.shape[1]
     samples_np = observations_raw
 
-    real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
+    real_config = setup_config(samples_np.shape[1], UCONN_CONFIG)
 
     width = np.sqrt(N)
     center = 7
@@ -78,7 +78,7 @@ def load_umd_bench_images(data_dir):
     size = observations_raw.shape[1]
     samples_np = observations_raw
 
-    real_config = setup_config(samples_np[0,:,:], UMD_SLIT_CONFIG)
+    real_config = setup_config(samples_np.shape[1], UMD_SLIT_CONFIG)
 
     if args.mode == "translate":
         width = N
@@ -99,34 +99,39 @@ def load_array_sim_images(data_dir):
     N = args.samples_count
     size = args.resolution
     observations_raw = np.empty((N,size,size))
-    for i in range(N):
-        fname = f'{data_dir}/{i:04d}{args.file_extension}'
-        img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)/255.0
-        if img.shape[0] != img.shape[1]:
-            left = int((np.max(img.shape) - np.min(img.shape)) / 2)
-            right = left + np.min(img.shape)
-            resized = cv2.resize(img[:,left:right], (size,size))
-            amplitude = np.sqrt(resized)
-            observations_raw[i,:,:] = amplitude
-        else:
-            observations_raw[i,:,:] = img
+    real_config = setup_config(observations_raw.shape[1], ARRAY_CONFIG)
 
-    samples_np = observations_raw
-
-    real_config = setup_config(samples_np[0,:,:], ARRAY_CONFIG)
-
-    width = np.sqrt(N)
-    center = 2
+    # === Calculate pupil shift ===
+    width = int(np.sqrt(N))
+    center = width//2
     location = np.arange(width)
     xlocation = location - center
     ylocation = xlocation
     y,x = np.meshgrid(ylocation, xlocation)
     positions = np.stack([x,y], axis=-1).reshape(-1,2) # CJCJCJ this sucks
-    shift = positions * args.translation * -1
-    print(f"Samples shape: {samples_np.shape} Theta shape: {shift.shape}")
-    order = spiral((center,center),int(width))
+    shift = positions * real_config['translation_px'] * -1
+    print(f"Samples shape: {observations_raw.shape} Theta shape: {shift.shape}")
+    order = spiral((center,center),width)
     shift = rearrange(shift, order)
     # samples_np = rearrange(samples_np, order)
+
+    # === Load images ===
+    for i in range(N):
+        fname = f'{data_dir}/{i:04d}{args.file_extension}'
+        img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)/255.0
+        # distance_from_center_px = np.sqrt(shift[i][1]**2 + shift[i][0]**2) + 1e-10
+        # print(distance_from_center_px)
+        # img = img / distance_from_center_px # divide by distance from center
+        if img.shape[0] != img.shape[1]:
+            left = int((np.max(img.shape) - np.min(img.shape)) / 2)
+            right = left + np.min(img.shape)
+            resized = cv2.resize(img[:,left:right], (size,size))
+            observations_raw[i,:,:] = resized
+        else:
+            observations_raw[i,:,:] = img
+
+    samples_np = observations_raw
+    # samples_np = np.sqrt(observations_raw) # convert to amplitude
 
     return samples_np, shift, real_config
 
@@ -142,7 +147,7 @@ def load_matlab_images(data_dir):
         samples_np[i,:,:] = cv2.resize(observations_raw[i,:,:], (size, size)) / 255.0
     samples = torch.from_numpy(samples_np)
 
-    real_config = setup_config(samples[0,:,:], UCONN_CONFIG)
+    real_config = setup_config(samples.shape[1], UCONN_CONFIG)
 
     # === Load LED locations ===
     LED_dir = args.name+'_LED_locations'
@@ -175,7 +180,7 @@ def load_waller_images(data_dir):
     size = observations_raw.shape[1]
     samples_np = observations_raw
 
-    real_config = setup_config(samples_np[0,:,:], UCONN_CONFIG)
+    real_config = setup_config(samples_np.shape[1], UCONN_CONFIG)
 
     width = np.sqrt(N)
     center = 2
@@ -197,61 +202,33 @@ def load_waller_images(data_dir):
 def load_sim_images(data_dir):
     W = args.resolution
     sample = cv2.imread(f'{data_dir}/{args.data_name}{args.file_extension}', 0).astype(np.float32)
-    sim_config = setup_config(
-        torch.zeros(W, W), UMD_SLIT_CONFIG
-    )
+    sim_config = setup_config(W, UMD_SLIT_CONFIG)
     sample = cv2.resize(sample, (W*sim_config['upsample'],
                                  W*sim_config['upsample'])) / 255.0
 
     N = args.samples_count
     observations = np.empty((N, W, W))
 
-    if args.mode == "translate":
-        center = N // 2
-        location = np.arange(N)
-        xlocation = location - center
-        ylocation = np.zeros_like(xlocation)
-        positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * -1 * sim_config['translation_px']
-        mask = sim_config['M'].detach().cpu().numpy()
-        mask = np.where(mask, 1.0, 0.0)
-    elif args.mode == "rotate":
-        rot = np.arange(N) * 180 / N - 90
-        shift = np.stack((rot,rot),axis=1)
-        # unfinished, pass rotation angles as Theta?
-        masks = np.zeros((N, sim_config['N'], sim_config['N']))
-        for i in range(N):
-            masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], sim_config['aperture_diameter_px'])
-    elif args.mode == "traditional":
-        Nx = np.sqrt(N)
-        center = Nx // 2
-        location = np.arange(Nx)
-        xlocation = location - center
-        xs,ys = np.meshgrid(xlocation, xlocation)
-        positions = np.stack([xs,ys], axis=-1).reshape(-1,2)
-        shift = positions * -1 * sim_config['translation_px']
-        mask = sim_config['M'].detach().cpu().numpy()
-        mask = np.where(mask, 1.0, 0.0)
+    Nx = np.sqrt(N)
+    center = Nx // 2
+    location = np.arange(Nx)
+    xlocation = location - center
+    xs,ys = np.meshgrid(xlocation, xlocation)
+    positions = np.stack([ys,xs], axis=-1).reshape(-1,2)
+    shift = positions * -1 * sim_config['translation_px']
+    mask = sim_config['M'].detach().cpu().numpy()
+    mask = np.where(mask, 1.0, 0.0)
 
-    if args.mode == "translate" or args.mode == "traditional":
-        kx = shift[:,0]
-        ky = shift[:,1]
-        dkx = 1
-        dky = 1
-    elif args.mode == "rotate":
-        kx = np.zeros_like(shift[:,0])
-        ky = np.zeros_like(shift[:,1])
-        dkx = 1
-        dky = 1
+    kx = shift[:,0]
+    ky = shift[:,1]
+    dkx = 1
+    dky = 1
 
     O = F(sample)
 
     for i in range(N):
         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
-        if args.mode == "translate" or args.mode == "traditional":
-            masked = O[ly:hy, lx:hx] * mask
-        elif args.mode == "rotate":
-            masked = O[ly:hy, lx:hx] * masks[i]
+        masked = O[ly:hy, lx:hx] * mask
         observations[i, :, :] = np.abs(iF(masked))
         observations[i, :, :] = np.abs(iF(masked)) ** 2
         # plt.subplot(1,2,1)

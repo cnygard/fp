@@ -22,15 +22,15 @@ def reconstruction(observations, Theta, num_epochs, config):
                         guess.shape[1] * config['upsample']))
     guessFT = F(guess)
 
-    region = np.zeros(guessFT.shape)
+    region = np.zeros(guessFT.shape, dtype=np.complex128)
 
     # create kx/ky for all three wavelengths
-    kx = [focal_plane_dist_to_pixels(t, config) for t in Theta[:,1]]
-    ky = [focal_plane_dist_to_pixels(t, config) for t in Theta[:,0]]
+    kx = Theta[:,1]
+    ky = Theta[:,0]
     dkx = 1
     dky = 1
     mask = config['M'].detach().cpu().numpy()
-    mask = np.where(mask, 1.0, 0.0)
+    mask = np.where(mask, 1.0, 0.0).astype(np.complex128)
 
     prog_bar = tqdm(range(num_epochs))
     first = True
@@ -56,7 +56,7 @@ def reconstruction(observations, Theta, num_epochs, config):
 
                 measurement = config['upsample']**2 * measurements[:,:,channel]
 
-                low_res_guess_new = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
+                low_res_guess_new = np.sqrt(measurement) * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
                 low_res_guess_FT = F(low_res_guess_new)
 
                 normalMask = np.conj(mask)/np.max((np.abs(mask))**2)
@@ -72,7 +72,7 @@ def reconstruction(observations, Theta, num_epochs, config):
                         region[ly:hy,lx:hx] + \
                         normalMask *          \
                         newInfo
-                    black = np.zeros(region.shape)
+                    black = np.zeros(region.shape, dtype=np.complex128)
                     black[ly:hy,lx:hx] =     \
                         normalMask *         \
                         newInfo
@@ -89,8 +89,8 @@ def reconstruction(observations, Theta, num_epochs, config):
                     img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.abs(np.sqrt(np.log(1+normalMask * newInfo)))
                     img7 = f'black', np.abs(np.log(iF(black)))
                     debug_print(img1,img2,img3,img4,img5,img6,save=False)
-                    name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr_i{i}'
-                    cv2.imwrite(f'{name_thing}reconstruction_mid.jpg', np.abs(guess)*255)
+                    # name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr_i{i}'
+                    # cv2.imwrite(f'{name_thing}reconstruction_mid.jpg', np.abs(guess)*255)
         first = False
 
     if args.momentum:
@@ -117,8 +117,6 @@ def reconstruction(observations, Theta, num_epochs, config):
                 countimg += 1
                 lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
                 r = guessFT[ly:hy, lx:hx]
-                if args.mode == "rotate":
-                    mask = masks[i]
                 r_masked = r * mask
                 low_res_guess = iF(r_masked)
 
