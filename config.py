@@ -90,13 +90,15 @@ UMD_SLIT_CONFIG = {
 ARRAY_CONFIG = {
     "title": "Simulated FP Camera Array",
     # "dx": 1.845e-6, # pixel size, maybe wrong see upsampling ratio in Matlab (4x)
-    "dx": 148/3 * um, # distance between pixels on the sample
+    # "dx": 148/3 * um, # distance between pixels on the sample
+    "dx": 1.85 * um, # distance between pixels on the sample
     "pixel_size": 1.85 * um, # size of sensor pixel
     "object_distance": 2 * m,
     # "aperture_diameter_px": 1.2*mm * 1080 * 3.45*um / (532*nm * 100*mm), # ~84 px
     "f_number": 22,
-    "wavelength": [653*nm,515*nm,445*nm],
-    "f1": 75*mm, # focal length 1
+    # "wavelength": [653*nm,515*nm,445*nm],
+    "wavelength": 532*nm,
+    "f1": 75*mm # focal length
 }
 
 UCONN_CONFIG = {
@@ -161,24 +163,43 @@ def setup_config(sample_width: int, base_config: dict):
     # === Define pupil mask (circular aperture) ===
     # print(f'Objective NA {config['NA_obj']:.2e}')
     config['aperture_diameter_m'] = args.aperture_diameter * mm
-    config['aperture_diameter_px'] = focal_plane_dist_to_pixels(args.aperture_diameter, config) # pixel calculation
+    # config['aperture_diameter_px'] = focal_plane_dist_to_pixels(args.aperture_diameter, config) # pixel calculation
 
-    config['translation_px'] = focal_plane_dist_to_pixels(args.translation,config)
-    print(f'Aperture diameter: {args.aperture_diameter:.2f}mm {config['aperture_diameter_px']:.2f} pixels {100*config['aperture_diameter_px']/config['out_N']:.2f}% of output')
-    print(f'Aperture translation: {args.translation:.2f}mm {config['translation_px']:.2f}px')
-    radius_px = config['aperture_diameter_px']/2.0
-    overlap_area_px = 2*(radius_px**2)*np.arccos(config['translation_px']/(2*radius_px))-(config['translation_px']/2)*np.sqrt(4*(radius_px**2)-(config['translation_px']**2))
-    overlap_percent = 100*overlap_area_px/(np.pi * (radius_px**2))
-    print(f'Overlap: {overlap_area_px:.2f}mm {overlap_percent:.2f}%')
+    # print(f'Aperture diameter: {args.aperture_diameter:.2f}mm {config['aperture_diameter_px']:.2f} pixels {100*config['aperture_diameter_px']/config['out_N']:.2f}% of output')
+    print(f'Aperture translation: {args.translation:.2f}mm')
+    # radius_px = config['aperture_diameter_px']/2.0
+    # overlap_percent = 100*overlap_area_px/(np.pi * (radius_px**2))
+    # print(f'Overlap: {overlap_percent:.2f}%')
     # coverage_mm = args.aperture_diameter + (args.aperture_diameter - overlap_mm) * (args.samples_count - 1)
     # coverage_px = config['aperture_diameter_px'] + (config['aperture_diameter_px'] - overlap_px) * (args.samples_count - 1)
     # coverage_percent = 100 * coverage_px / config['out_N']
     # print(f'Coverage: {coverage_mm:.2f}mm {coverage_px:.2f}px {coverage_percent:.2f}%')
 
+    # aperture_theta = np.arctan(args.aperture_diameter * mm / (2 * config['f1']))
+    # NA = 1.0003 * np.sin(aperture_theta)
+    # aperture_k_radius = NA * config['pixel_size'] * config['N'] / config['wavelength']
+    # print(f'aperture_diameter_px/2: {config['aperture_diameter_px']/2}')
+    # print(f'aperture_k_radius: {aperture_k_radius}')
+    #
+    # x = torch.arange(-config['N'] // 2, config['N'] // 2)
+    # X, Y = torch.meshgrid(x, x, indexing='xy')
+    # R = torch.sqrt(X**2 + Y**2)
+    # # config['M'] = R < config['aperture_diameter_px']/2
+    # config['M'] = R < aperture_k_radius
+
+    aperture_theta = np.arctan(config['aperture_diameter_m'] / (2 * config['object_distance']))
+    config['NA'] = 1.0003 * np.sin(aperture_theta)
+    print(f'NA: {config['NA']}')
     x = torch.arange(-config['N'] // 2, config['N'] // 2)
     X, Y = torch.meshgrid(x, x, indexing='xy')
-    R = torch.sqrt(X**2 + Y**2)
-    config['M'] = R < config['aperture_diameter_px']/2
+    sensor_size_m = config['N'] * config['dx']
+    KX = 2 * np.pi * X / sensor_size_m  # angular spatial-frequency grid, rad/m
+    KY = 2 * np.pi * Y / sensor_size_m
+    k_rho = np.sqrt(KX ** 2 + KY ** 2)  # wavelength-independent
+    k_cutoff = config['NA']* config['k']
+    pupil_function = k_rho <= k_cutoff
+    config['M'] = pupil_function
+    # print(f'Aperture diameter: {config['aperture_diameter_px']} px')
 
     print(f'Learning rate: {args.learning}')
     return config

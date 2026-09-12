@@ -2,6 +2,7 @@ import cv2
 import matlab_reconstruction
 import matplotlib.pyplot as plt
 import ml_reconstruction
+import savi_reconstruction
 import numpy as np
 import scipy
 import torch
@@ -59,6 +60,9 @@ if __name__ == "__main__":
     pred = matlab_reconstruction.real(
         samples_np, Theta, num_epochs=args.epochs, config=real_config
     )
+    # pred = savi_reconstruction.real(
+    #     samples_np, Theta, num_epochs=args.epochs, config=real_config
+    # )
     print(f"Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}")
     if args.save:
         name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr'
@@ -68,112 +72,23 @@ if __name__ == "__main__":
         # plt.imsave(f'{name_thing}phase.jpg', (angle/np.max(angle))*255, cmap='inferno')
         cv2.imwrite(f'{name_thing}phase.jpg', (angle/np.max(angle))*255)
         print(f'Results saved to {name_thing}amplitdue.jpg and {name_thing}phase.jpg')
-    # img1 = 'First Measurement', samples_np[0,:,:]
+
+    # W = args.resolution
+    # gt = cv2.imread(f'{data_loc}/{args.data_name}{args.file_extension}', 0).astype(np.float32)
+    # gt = cv2.resize(gt, (W*args.upsample,
+    #                      W*args.upsample)) / 255.0
+    #
+    # from skimage.metrics import peak_signal_noise_ratio
+    # psnr_value = peak_signal_noise_ratio(gt, np.real(pred))
+    # print(f"PSNR: {psnr_value:.2f} dB")
+    # psnr_value = peak_signal_noise_ratio(gt, cv2.resize(samples_np[0,:,:],
+    #                                                     (W*args.upsample,
+    #                                                      W*args.upsample)))
+    # print(f"Center PSNR: {psnr_value:.2f} dB")
+
+    img1 = 'First Measurement', samples_np[0,:,:]
     # img1 = 'Middle Measurement', samples_np[samples_np.shape[0]//2,:,:]
-    img1 = "Averaged", avg
+    # img1 = "Averaged", avg
     img2 = "Amplitude", np.abs(pred)
     img3 = "Phase", np.angle(pred)
     debug_print(img1, img2, img3)
-
-# # ===== Simulation =====
-# elif __name__ == "__main__" and args.sim:
-#     # === Load and preprocess image ===
-#     W = args.resolution
-#     data_dir = "Data/" + args.data_name
-#     sample = cv2.imread(data_dir, 0).astype(np.float32)
-#     sim_config = setup_config(
-#         torch.zeros(W, W), UMD_SLIT_CONFIG
-#     )
-#     sample = cv2.resize(sample, (W*sim_config['upsample'],
-#                                  W*sim_config['upsample'])) / 255.0
-#
-#     N = args.samples_count
-#     observations = np.empty((N, W, W))
-#
-#     if args.mode == "translate":
-#         center = N // 2
-#         location = np.arange(N)
-#         xlocation = location - center
-#         ylocation = np.zeros_like(xlocation)
-#         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-#         shift = positions * -1 * sim_config['translation_px']
-#         mask = sim_config['M'].detach().cpu().numpy()
-#         mask = np.where(mask, 1.0, 0.0)
-#     elif args.mode == "rotate":
-#         # TODO fix later, hardcoded old values for now
-#         shift = np.array([[-90, 0], [-67.5, 0], [-45, 0], [-22.5, 0], [0, 0], [22.5, 0], [45, 0], [67.5, 0]])
-#         # unfinished, pass rotation angles as Theta?
-#         masks = np.zeros((N, sim_config['N'], sim_config['N']))
-#         for i in range(N):
-#             masks[i] = rotating_bar_mask((sim_config['N'], sim_config['N']), shift[i,0], args.slit_width)
-#
-#     if args.mode == "translate":
-#         kx = shift[:,0]
-#         ky = shift[:,1]
-#         dkx = 1
-#         dky = 1
-#     elif args.mode == "rotate":
-#         kx = np.zeros_like(shift[:,0])
-#         ky = np.zeros_like(shift[:,1])
-#         dkx = 1
-#         dky = 1
-#
-#     O = F(sample)
-#
-#     for i in range(N):
-#         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
-#         # mask = sim_config['Ms'][i]
-#         # mask = np.where(mask, 1.0, 0.0)
-#         if args.mode == "translate":
-#             masked = O[ly:hy, lx:hx] * mask
-#         elif args.mode == "rotate":
-#             masked = O[ly:hy, lx:hx] * masks[i]
-#         observations[i, :, :] = np.abs(iF(masked))
-#         # observations[i, :, :] = np.abs(iF(masked)) ** 2
-#         # plt.subplot(1,2,1)
-#         # plt.imshow(observations[i])
-#         # plt.subplot(1,2,2)
-#         # plt.imshow(np.abs(np.log(masked)))
-#         # plt.show()
-#
-#     if args.observations:
-#         samples_per = 12
-#         shape = 3, 4
-#         for slide in range(int(np.ceil(observations.shape[0] / samples_per))):
-#             for i in range(samples_per):
-#                 if i + slide * samples_per > observations.shape[0] - 1:
-#                     break
-#                 plt.subplot(shape[0], shape[1], i + 1)
-#                 plt.title("raw image " + str(i + slide * samples_per))
-#                 plt.imshow(
-#                     observations[i + slide * samples_per, :, :],
-#                     cmap="hot",
-#                 )
-#                 plt.axis("off")
-#             plt.tight_layout()
-#             plt.show()
-#
-#     if cj:
-#         # Theta = torch.deg2rad(Theta)
-#         pred = matlab_reconstruction.sim(
-#                 observations, shift, num_epochs=args.epochs, config=sim_config
-#         )
-#         print(f"Sample shape {sample.shape}, Result shape {pred.shape}")
-#         # img1 = "Ground Truth", sample
-#         guess = np.sum(observations, axis=0) / observations.shape[0]
-#         guess = cv2.resize(guess,
-#                            (guess.shape[0] * sim_config['upsample'],
-#                             guess.shape[1] * sim_config['upsample']))
-#         img1 = "Sum Guess", guess
-#         img2 = "Amplitude", np.abs(pred)
-#         # img3 = "F", np.real(np.log(F(pred)))
-#         img3 = "Phase", np.angle(pred)
-#         debug_print(img1, img2, img3)
-#     else:
-#         pred = ml_reconstruction.sim(
-#             sample, Theta, num_epochs=args.epochs, config=sim_config
-#         )
-#         img1 = "Measurement", forward_model(sample, torch.tensor([0, 0]), sim_config)
-#         img2 = "FP Reconstruction", pred.detach().cpu()
-#         img3 = "GT", sample
-#         debug_print(img1, img2, img3)

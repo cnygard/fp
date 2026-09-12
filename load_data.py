@@ -87,7 +87,7 @@ def load_umd_bench_images(data_dir):
         xlocation = location - center
         ylocation = np.zeros_like(xlocation)
         positions = np.stack([xlocation,ylocation], axis=-1).reshape(-1,2)
-        shift = positions * -1 * real_config['translation_px']
+        shift = positions * -1# * real_config['translation_px'] # broken rn
     elif args.mode == "rotate":
         with open(f'{data_dir}/angles.txt', 'r') as f:
             angles = [float(line.strip()) for line in f if line.strip()]
@@ -107,12 +107,13 @@ def load_array_sim_images(data_dir):
     location = np.arange(width)
     xlocation = location - center
     ylocation = xlocation
-    y,x = np.meshgrid(ylocation, xlocation)
+    x,y = np.meshgrid(xlocation, ylocation)
     positions = np.stack([x,y], axis=-1).reshape(-1,2) # CJCJCJ this sucks
-    shift = positions * real_config['translation_px'] * -1
-    print(f"Samples shape: {observations_raw.shape} Theta shape: {shift.shape}")
+    physical_shift = positions * args.translation * mm * -1
+    Theta = np.arctan(physical_shift / real_config['object_distance'])
+    print(f"Samples shape: {observations_raw.shape} Theta shape: {Theta.shape}")
     order = spiral((center,center),width)
-    shift = rearrange(shift, order)
+    Theta = rearrange(Theta, order)
     # samples_np = rearrange(samples_np, order)
 
     # === Load images ===
@@ -130,10 +131,10 @@ def load_array_sim_images(data_dir):
         else:
             observations_raw[i,:,:] = img
 
-    samples_np = observations_raw
+    samples_np = np.sqrt(observations_raw)
     # samples_np = np.sqrt(observations_raw) # convert to amplitude
 
-    return samples_np, shift, real_config
+    return samples_np, Theta, real_config
 
 def load_matlab_images(data_dir):
     # === Load and preprocess image ===
@@ -166,8 +167,8 @@ def load_waller_images(data_dir):
     size = args.resolution
     observations_raw = np.empty((N,size,size))
     for i in range(N):
-        print(f'{data_dir}/ILED_{i:02d}.tif')
-        img = cv2.imread(f'{data_dir}/ILED_{i:02d}.tif')/255.0 # read as BGR
+        print(f'{data_dir}/ILED_{i:02d}{args.file_extension}')
+        img = cv2.imread(f'{data_dir}/ILED_{i:02d}{args.file_extension}')/255.0 # read as BGR
         color = 2 # red
         if img.shape[0] != img.shape[1]:
             left = int((np.max(img[:,:,color].shape) - np.min(img[:,:,color].shape)) / 2)
@@ -202,7 +203,7 @@ def load_waller_images(data_dir):
 def load_sim_images(data_dir):
     W = args.resolution
     sample = cv2.imread(f'{data_dir}/{args.data_name}{args.file_extension}', 0).astype(np.float32)
-    sim_config = setup_config(W, UMD_SLIT_CONFIG)
+    sim_config = setup_config(W, ARRAY_CONFIG)
     sample = cv2.resize(sample, (W*sim_config['upsample'],
                                  W*sim_config['upsample'])) / 255.0
 
@@ -214,15 +215,16 @@ def load_sim_images(data_dir):
     location = np.arange(Nx)
     xlocation = location - center
     xs,ys = np.meshgrid(xlocation, xlocation)
-    positions = np.stack([ys,xs], axis=-1).reshape(-1,2)
-    shift = positions * -1 * sim_config['translation_px']
+    positions = np.stack([xs,ys], axis=-1).reshape(-1,2)
+    physical_shift = positions * -1 * args.translation * mm
+    Theta = np.arctan(physical_shift / sim_config['object_distance'])
     mask = sim_config['M'].detach().cpu().numpy()
     mask = np.where(mask, 1.0, 0.0)
 
-    kx = shift[:,0]
-    ky = shift[:,1]
-    dkx = 1
-    dky = 1
+    order = spiral((center,center),int(Nx))
+    Theta = rearrange(Theta, order)
+
+    kx,ky,dkx,dky = kspace_parameterize(Theta, sim_config)
 
     O = F(sample)
 
@@ -230,10 +232,4 @@ def load_sim_images(data_dir):
         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
         masked = O[ly:hy, lx:hx] * mask
         observations[i, :, :] = np.abs(iF(masked))
-        observations[i, :, :] = np.abs(iF(masked)) ** 2
-        # plt.subplot(1,2,1)
-        # plt.imshow(observations[i])
-        # plt.subplot(1,2,2)
-        # plt.imshow(np.abs(np.log(masked)))
-        # plt.show()
-    return observations, shift, sim_config
+    return observations, Theta, sim_config

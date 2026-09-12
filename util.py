@@ -147,19 +147,28 @@ def find_bounds(x,y,dx,dy,config):
     center_of_output = (config['out_N'] + 1) // 2
     centerX = matlab_round(center_of_output - x / dx)
     centerY = matlab_round(center_of_output - y / dy)
+    # print(f'xy {center_of_output - x},{center_of_output - y}')
+    # print(f'center xy {centerX},{centerY}')
     lowX  = matlab_round(centerX - (config['N']-1)/2)
     lowY  = matlab_round(centerY - (config['N']-1)/2)
     highX = matlab_round(centerX + (config['N']-1)/2) + 1
     highY = matlab_round(centerY + (config['N']-1)/2) + 1
+    # import pdb;pdb.set_trace()
     return lowX, lowY, highX, highY
 
 def kspace_parameterize(Theta, config):
-    kx = config['k'] * Theta[:,0]
-    ky = config['k'] * Theta[:,1]
+    kx = config['k'] * np.sin(Theta[:,0]) # Angle on xz plane
+    ky = config['k'] * np.sin(Theta[:,1]) # Angle on yz plane
     dkx = 2*np.pi/(config['dx']*config['N'])
     dky = 2*np.pi/(config['dx']*config['N'])
     return kx,ky,dkx,dky
 
 def focal_plane_dist_to_pixels(dist_mm, config): 
-    return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["f1"]) # CJCJCJ fix wavelength thing
+    # This scaling depends on if we're using a 4f system to get perform the
+    # Fourier transofrm or if it's being done through the Fraunhofer
+    # approximation. The former relies on the focal length of the first lens
+    # while the latter relies on the distance from object to lens
+
+    # return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["f1"]) # CJCJCJ fix wavelength thing
+    return dist_mm*mm * config["N"] * config["pixel_size"] / (config["wavelength"] * config["object_distance"])
 
