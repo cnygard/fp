@@ -15,17 +15,17 @@ import cv2
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 
-from minimal_fpm import (
+from fp import (
     AlternatingProjectionReconstructor, FourierPtychographyModel, MeasurementSet,
     OpticalConfig, ReconstructionGrid, SaviReconstructor, SolverOptions,
 )
-from minimal_fpm.cli import parse_args, run
-from minimal_fpm.fft import fft2c, ifft2c
-from minimal_fpm.geometry import angles_to_wavevectors, array_wavevectors, spiral_order
-from minimal_fpm.io import ArraySimLoader
-from minimal_fpm.preprocessing import center_crop_resize
-from minimal_fpm.results import save_result
-from minimal_fpm.simulation import simulate_measurements
+from fp.cli import parse_args, run
+from fp.fft import fft2c, ifft2c
+from fp.geometry import angles_to_wavevectors, array_wavevectors, spiral_order
+from fp.io import ArraySimLoader
+from fp.preprocessing import center_crop_resize
+from fp.results import save_result
+from fp.simulation import simulate_measurements
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -290,7 +290,7 @@ class LoaderAndCliTests(unittest.TestCase):
     def test_import_has_no_cli_plotting_or_torch_side_effects(self):
         checked = subprocess.run([
             sys.executable, "-B", "-c",
-            "import sys; sys.argv = ['host', '--unrelated']; import minimal_fpm; "
+            "import sys; sys.argv = ['host', '--unrelated']; import fp; "
             "assert 'matplotlib.pyplot' not in sys.modules; "
             "assert 'torch' not in sys.modules; assert 'config' not in sys.modules",
         ], cwd=ROOT, capture_output=True, text=True)

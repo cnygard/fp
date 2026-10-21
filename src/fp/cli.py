@@ -15,6 +15,7 @@ from .results import save_result
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
+        prog="fp",
         description="Modular single-wavelength array FPM reconstruction"
     )
     parser.add_argument("data_dir", type=Path)
@@ -150,4 +151,4 @@ def main(argv=None):
     try:
         run(args)
     except (ValueError, OSError, TypeError) as error:
-        raise SystemExit(f"minimal-fpm: {error}") from error
+        raise SystemExit(f"fp: {error}") from error

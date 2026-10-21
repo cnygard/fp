@@ -1,7 +1,7 @@
-# minimal-fpm
+# fp
 
 Fourier ptychography reconstruction. The first modular migration is available
-under `src/minimal_fpm` on this branch. The original root-level research scripts
+under `src/fp` on this branch. The original root-level research scripts
 remain available while additional acquisition types and algorithms are migrated.
 
 ## Run the migrated pipeline
@@ -9,21 +9,21 @@ remain available while additional acquisition types and algorithms are migrated.
 Use the existing project environment, or run `uv sync` to create one.
 
 ```sh
-uv run minimal-fpm Data/LED_sim/nonspeckle_incoherent_capture --epochs 3
+uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 3
 ```
 
 The dataset's flat `config.toml` supplies defaults; explicit command-line options
-override them. Both `minimal-fpm` and `python -m minimal_fpm` use the new CLI.
+override them. Both `fp` and `python -m fp` use the new CLI.
 Add `--show` to plot the amplitude and phase. To preserve the complex result,
 pupil, measurement geometry, frame IDs, settings, and convergence metrics:
 
 ```sh
-uv run minimal-fpm Data/LED_sim/nonspeckle_incoherent_capture \
+uv run fp Data/LED_sim/nonspeckle_incoherent_capture \
     --algorithm alternating_projection --epochs 3 --output result.npz
 ```
 
 Choose `savi` (default) or `alternating_projection`. Nothing is saved or plotted
-unless requested. Inspect all options with `uv run minimal-fpm --help`.
+unless requested. Inspect all options with `uv run fp --help`.
 
 The first increment supports single-wavelength circular-pupil array data
 (`--source array_sim`) and synthetic acquisitions (`--source sim`). Bench slit,
@@ -36,7 +36,7 @@ For a synthetic acquisition, supply an amplitude image and the sampling
 and optical parameters explicitly:
 
 ```sh
-uv run minimal-fpm Data --source sim --data_name usaf --file_extension .jpg \
+uv run fp Data --source sim --data_name usaf --file_extension .jpg \
     --aperture_diameter 79.99 --translation 28 --object_distance 2 \
     --samples_count 9 --resolution 64 --epochs 3
 ```
@@ -47,12 +47,12 @@ These parameters are an execution example, not a calibration for that image.
 ## Python API
 
 ```python
-from minimal_fpm import (
+from fp import (
     FourierPtychographyModel, OpticalConfig, ReconstructionGrid,
     SaviReconstructor, SolverOptions,
 )
-from minimal_fpm.geometry import array_wavevectors
-from minimal_fpm.io import ArraySimLoader
+from fp.geometry import array_wavevectors
+from fp.io import ArraySimLoader
 
 geometry = array_wavevectors(
     count=225, translation_m=0.028, object_distance_m=2.0,

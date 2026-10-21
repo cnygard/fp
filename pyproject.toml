@@ -1,7 +1,7 @@
 [project]
-name = "minimal-fpm"
+name = "fp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Fourier ptychography reconstruction"
 readme = "README.md"
 authors = [
     { name = "Christian Nygard", email = "seajay.nygard@gmail.com" }
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-minimal-fpm = "minimal_fpm:main"
+fp = "fp:main"
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
