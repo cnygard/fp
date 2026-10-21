@@ -111,7 +111,7 @@ class ReportingAndMetricTests(unittest.TestCase):
                 "fp reconstruction", "source: array_sim", "1 x 8 x 8", "wavelength 532 nm",
                 "aperture diameter 79.99 mm", "object distance 2 m", "NA", "measurement 3.7 um",
                 "reconstructed object 1.85 um", "Field of view", "8 x 8 -> 16 x 16",
-                "Solver: savi", "learning rate 0.1", "Pupil: fixed support",
+                "Solver: savi", "object learning rate 1", "Pupil: joint recovery enabled",
                 "Compute: cpu", "real float64, complex complex128", "Torch:", "Debug: off",
                 "Result file: disabled",
             ):

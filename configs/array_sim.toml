@@ -1,0 +1,10 @@
+source = "array_sim"
+file_extension = ".npy"
+samples_count = 225
+resolution = 300
+upsample = 2
+wavelength = "green"
+pixel_size_um = 1.85
+aperture_diameter = 79.99
+translation = 28.0
+object_distance = 2.0

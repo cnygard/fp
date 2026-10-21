@@ -1,0 +1,14 @@
+source = "led"
+file_extension = ".png"
+frame_pattern = "{index}"
+led_calibration = "../USAF_red_LED_locations.mat"
+wavelength = "red"
+pixel_size_um = 1.845
+objective_na = 0.1
+object_distance = 0.09088
+resolution = 141
+upsample = 4
+led_spacing_mm = 4.0
+led_height_mm = 90.88
+glass_thickness_mm = 1.0
+glass_refractive_index = 1.52

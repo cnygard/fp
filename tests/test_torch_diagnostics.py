@@ -1,4 +1,4 @@
-"""Torch/autograd contracts, future Wirtinger operators, and diagnostic isolation."""
+"""Torch/autograd contracts, Wirtinger operators, and diagnostic isolation."""
 
 from contextlib import redirect_stdout
 import io
@@ -38,7 +38,7 @@ class TorchOperatorTests(unittest.TestCase):
         torch.testing.assert_close(real_tensor(values, dtype=torch.float64),
                                    torch.tensor(values, dtype=torch.float64), rtol=0, atol=0)
 
-    def test_torch_bilinear_resize_matches_legacy_cv2(self):
+    def test_torch_bilinear_resize_matches_cv2(self):
         image = np.random.default_rng(21).uniform(size=(7, 9))
         resized = resize_image(image, (5, 8)).numpy()
         expected = np.empty((5, 8))
@@ -139,13 +139,14 @@ class DiagnosticTests(unittest.TestCase):
         field = torch.ones(model.grid.object_shape, dtype=torch.complex128)
         data = simulate_measurements(field, model)
         solver = SaviReconstructor(model, SolverOptions(2))
+        initial_pupil = model.pupil.clone()
         expected = solver.reconstruct(data)
         states = []
         result = solver.reconstruct(data, observer=states.append, observer_interval=3)
         self.assertEqual([state.step for state in states], [0, 3, 4, 6, 8])
         self.assertEqual([state.metrics.epoch for state in states if state.metrics], [0, 1, 2])
         self.assertEqual(states[-1].frame_index, 3)
-        self.assertEqual(set(states[-1].extras), {"measurement", "prediction", "residual", "update"})
+        self.assertEqual(set(states[-1].extras), {"measurement", "prediction", "residual", "update", "pupil_update"})
         for state in states:
             self.assertFalse(state.spectrum.requires_grad)
             self.assertFalse(state.pupil.requires_grad)
@@ -158,7 +159,7 @@ class DiagnosticTests(unittest.TestCase):
                 value.zero_()
         actual = solver.reconstruct(data, observer=corrupt_only_snapshot)
         torch.testing.assert_close(expected.object_field, actual.object_field, atol=0, rtol=0)
-        torch.testing.assert_close(model.pupil, expected.pupil)
+        torch.testing.assert_close(model.pupil, initial_pupil)
         with self.assertRaises(ValueError):
             solver.reconstruct(data, observer_interval=0)
 

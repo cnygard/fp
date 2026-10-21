@@ -4,7 +4,7 @@ from math import copysign, floor, isclose, pi, prod
 
 import torch
 
-from .config import OpticalConfig, ReconstructionGrid
+from .config import OpticalConfig, ReconstructionGrid, _positive
 from .data import MeasurementSet, wavevectors_tensor
 from .fft import fft2c, ifft2c
 from .tensors import TorchConfig
@@ -20,7 +20,7 @@ class FourierPtychographyModel:
     Image axes are (y,x), geometry columns are (kx,ky) in rad/m. A measured
     field is ifft2c(pupil * spectrum_patch) / upsample**2. Geometry is rounded
     once on CPU; numerical operations stay on the configured Torch device.
-    Optional pupil arguments let future solvers own and differentiate a pupil
+    Optional pupil arguments let solvers own and differentiate a pupil
     estimate without mutating the fixed model support or another solver's state.
     """
 
@@ -58,9 +58,9 @@ class FourierPtychographyModel:
             )
         )
         cutoff = optics.numerical_aperture * optics.wavenumber_rad_per_m
-        self.pupil_support = (torch.hypot(ky[:, None], kx[None, :]) <= cutoff).to(
-            self.device
-        )
+        self._pupil_radial_frequencies = torch.hypot(ky[:, None], kx[None, :])
+        self._pupil_cutoff = cutoff
+        self.pupil_support = self.pupil_support_at_scale(1.0)
         self.pupil = self.pupil_support.to(self.complex_dtype)
         dkx = 2 * pi / (optics.pixel_size_m * width)
         dky = 2 * pi / (optics.pixel_size_m * height)
@@ -74,6 +74,11 @@ class FourierPtychographyModel:
                 )
             patches.append((slice(top, top + height), slice(left, left + width)))
         self.patches = tuple(patches)
+
+    def pupil_support_at_scale(self, radius_scale=1.0):
+        """Circular frequency-domain support scaled relative to the nominal aperture."""
+        _positive("radius_scale", radius_scale)
+        return (self._pupil_radial_frequencies <= self._pupil_cutoff * radius_scale).to(self.device)
 
     def as_complex(self, values):
         return torch.as_tensor(values, device=self.device, dtype=self.complex_dtype)
@@ -158,7 +163,7 @@ class FourierPtychographyModel:
         return self.forward_fields(fft2c(object_field), pupil=pupil).abs().square()
 
     def intensity_loss(self, object_spectrum, intensities, *, pupil=None):
-        """Differentiable half mean-squared intensity error for future optimizers."""
+        """Differentiable half mean-squared intensity error for complex optimization."""
         prediction = self.forward_fields(object_spectrum, pupil=pupil).abs().square()
         observed = torch.as_tensor(
             intensities, device=self.device, dtype=self.real_dtype

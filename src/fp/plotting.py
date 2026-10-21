@@ -9,7 +9,7 @@ from .fft import ifft2c
 from .results import to_numpy
 
 DEFAULT_VIEWS = ("amplitude", "spectrum", "pupil_amplitude", "pupil_phase", "residual", "convergence")
-AVAILABLE_VIEWS = DEFAULT_VIEWS + ("phase", "measurement", "prediction", "update")
+AVAILABLE_VIEWS = DEFAULT_VIEWS + ("phase", "measurement", "prediction", "update", "pupil_update")
 
 
 class ReconstructionVisualizer:
@@ -90,8 +90,9 @@ class ReconstructionVisualizer:
                     axis.set_title(title)
                     axis.axis("off")
                     continue
-                if view == "update":
-                    image, title = image.abs().log1p(), "Patch update: log(1 + magnitude)"
+                if view in ("update", "pupil_update"):
+                    image = image.abs().log1p()
+                    title = "Pupil update: log(1 + magnitude)" if view == "pupil_update" else "Patch update: log(1 + magnitude)"
                 elif view == "residual":
                     bound = max(float(image.abs().max().item()), 1e-12)
                     cmap, limits = "coolwarm", {"vmin": -bound, "vmax": bound}

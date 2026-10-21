@@ -3,7 +3,7 @@
 from .config import OpticalConfig, ReconstructionGrid, SolverOptions
 from .data import MeasurementSet
 from .optics import FourierPtychographyModel
-from .reconstructors import AlternatingProjectionReconstructor, SaviReconstructor
+from .reconstructors import AlternatingProjectionReconstructor, SaviReconstructor, WirtingerFlowReconstructor
 from .results import ReconstructionResult
 from .tensors import TorchConfig
 from .diagnostics import IterationState
@@ -11,7 +11,7 @@ from .diagnostics import IterationState
 __all__ = [
     "OpticalConfig", "ReconstructionGrid", "SolverOptions", "MeasurementSet",
     "FourierPtychographyModel", "AlternatingProjectionReconstructor",
-    "SaviReconstructor", "ReconstructionResult", "TorchConfig", "IterationState",
+    "SaviReconstructor", "WirtingerFlowReconstructor", "ReconstructionResult", "TorchConfig", "IterationState",
 ]
 
 

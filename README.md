@@ -1,265 +1,233 @@
 # fp
 
-Fourier ptychography reconstruction. The first modular migration is available
-under `src/fp` on this branch. The original root-level research scripts
-remain available while additional acquisition types and algorithms are migrated.
+Torch-based Fourier ptychography with calibrated acquisition geometry, joint object/pupil
+projection solvers, and fixed-pupil Wirtinger flow.
 
-## Run the migrated pipeline
+## Install and run
 
-Use the existing project environment, or run `uv sync` to create one.
-
-```sh
-uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 3
-```
-
-The dataset's flat `config.toml` supplies defaults; explicit command-line options
-override them. Both `fp` and `python -m fp` use the new CLI.
-Add `--show` to plot the amplitude and phase. To preserve the complex result,
-pupil, measurement geometry, frame IDs, settings, and convergence metrics:
+Requires Python 3.14 or newer.
 
 ```sh
-uv run fp Data/LED_sim/nonspeckle_incoherent_capture \
-    --algorithm alternating_projection --epochs 3 --output result.npz
+uv sync
+uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 10 --output result.npz
 ```
 
-Choose `savi` (default) or `alternating_projection`. Nothing is saved or plotted
-unless requested. Inspect all options with `uv run fp --help`.
+`python -m fp` provides the same command. Dataset `config.toml` values are defaults;
+for a `.mat` input, the default is a sibling TOML file with the same stem.
+`--config PATH` selects a settings file explicitly. Command-line arguments override
+TOML values. Use `uv run fp --help` for all options.
+Startup output reports optics, sampling, geometry, solver controls, pupil support,
+resolved device and dtypes, and debug/output settings.
 
-The first increment supports single-wavelength circular-pupil array data
-(`--source array_sim`) and synthetic acquisitions (`--source sim`). Bench slit,
-rotating-slit, Pi, MATLAB, and Waller acquisition adapters, momentum, pupil
-estimation, denoising, autograd, and multi-wavelength reconstruction still use the
-legacy scripts. The migrated CLI rejects unsupported source/mode settings rather
-than guessing how their geometry maps into this model.
+## Input and configuration
 
-For a synthetic acquisition, supply an amplitude image and the sampling
-and optical parameters explicitly:
+| Source | Input / geometry |
+| --- | --- |
+| `array_sim` | Numbered intensity files with spiral array geometry |
+| `sim` | Synthetic measurements generated from an amplitude image |
+| `matlab` | MATLAB `imlow_HDR` intensity cube and LED calibration |
+| `led` | Numbered intensity files with LED calibration |
+
+Reconstruction uses one wavelength and a circular nominal aperture. Specify its
+physical `aperture_diameter` or an `objective_na`; the latter determines the
+equivalent aperture for the configured object distance.
+
+Array files are named `0000.npy`, `0001.npy`, etc., in spiral acquisition order.
+For numbered files, `--frame-pattern '{index}'` selects unpadded names, and
+`--frame-pattern 'ILED_{index:02d}'` selects stems such as `ILED_00`. The extension
+is supplied separately.
+TIFF and other grayscale raster formats can be selected with `--file_extension`.
+NPY values retain their intensity scale. Integer rasters are divided by their
+dtype's maximum, including 16-bit TIFFs. Images are center-cropped to a square and
+resized to the requested resolution, preserving the cropped physical field of view.
+
+A flat dataset `config.toml` can contain:
+
+```toml
+source = "array_sim"
+file_extension = ".npy"
+samples_count = 225
+resolution = 300
+upsample = 2
+wavelength = "green"
+pixel_size_um = 1.85
+aperture_diameter = 79.99
+translation = 28
+object_distance = 2.0
+algorithm = "savi"
+epochs = 10
+learning = 1.0
+pupil_learning = 1.0
+```
+
+| Setting | Meaning / units |
+| --- | --- |
+| `samples_count` | Perfect-square number of array/simulation frames; LED inputs use the calibration count |
+| `resolution` | Measurement width and height after preprocessing, pixels |
+| `upsample` | Integer ratio of output dimensions to measurement dimensions |
+| `wavelength` | `red` = 630 nm, `green` = 532 nm, `blue` = 475 nm |
+| `pixel_size_um` | Native sample-plane pixel spacing, micrometers |
+| `aperture_diameter` | Nominal circular aperture diameter, millimeters |
+| `objective_na` | Objective numerical aperture, instead of `aperture_diameter` |
+| `translation` | Adjacent array spacing, millimeters |
+| `object_distance` | Object-to-aperture distance, meters |
+| `learning` / `pupil_learning` | Object / pupil update relaxation, positive; default 1 |
+| `object_epsilon` / `pupil_epsilon` | Positive denominator stabilizers; default `1e-10` |
+
+For `--source sim`, `--data_name` selects an amplitude image without its extension.
+The image is converted to grayscale and resized to the object grid;
+`pixel_size_um` then specifies the simulated measurement spacing.
+
+### MATLAB/HDR and calibrated LED inputs
 
 ```sh
-uv run fp Data --source sim --data_name usaf --file_extension .jpg \
-    --aperture_diameter 79.99 --translation 28 --object_distance 2 \
-    --samples_count 9 --resolution 64 --epochs 3
+uv run fp Data/USAF_red.mat --config configs/usaf_red.toml --epochs 10 --output usaf.npz
+uv run fp Data/MouseKidney_green.mat --config configs/mousekidney_green.toml --epochs 10
+uv run fp Data/USAF_red --config configs/usaf_red_png.toml --epochs 10
 ```
 
-Source images are converted to grayscale while retaining integer bit depth.
-These parameters are an execution example, not a calibration for that image.
+Passing a `.mat` input selects `matlab` automatically. A directory can instead use
+`--source matlab --data_name STEM`. Cubes have shape `(height, width, frames)`;
+`--mat-key` changes the default variable name `imlow_HDR`. Both integer and floating
+MATLAB intensities retain their scale, including HDR values above one. Use
+`--intensity-scale` for an explicit multiplier. MATLAB v4/v6/v7 through v7.2 files
+are supported; v7.3/HDF5 files must be saved in an earlier MATLAB format.
 
-## Python API
+The default companion calibration for `STEM.mat` is `STEM_LED_locations.mat`.
+`--led-calibration PATH` selects another file, relative to the dataset directory
+(or the input file's parent). A `led` source requires this option. Calibration
+files contain either:
 
-```python
-from fp import (
-    FourierPtychographyModel, OpticalConfig, ReconstructionGrid,
-    SaviReconstructor, SolverOptions, TorchConfig,
-)
-from fp.geometry import array_wavevectors
-from fp.io import ArraySimLoader
+- `xlocation_s` and `ylocation_s`: equally sized row or column vectors of LED grid
+  indices, in acquisition order. Columns are `(x,y)`; no spiral reordering is added.
+- `wavevectors_rad_per_m`: calibrated `(frames,2)` transverse wavevectors `(kx,ky)`.
+  These are used directly, with no location transformation or refraction.
 
-geometry = array_wavevectors(
-    count=225, translation_m=0.028, object_distance_m=2.0,
-    wavelength_m=532e-9,
-)
-measurements = ArraySimLoader(
-    wavevectors_rad_per_m=geometry,
-    pixel_size_m=1.85e-6,  # native effective sample-plane spacing
-    resolution=300,
-).load("Data/LED_sim/nonspeckle_incoherent_capture")
+Location calibration defaults are 4 mm LED spacing, 90.88 mm LED-to-slide air gap,
+1 mm glass thickness, and glass refractive index 1.52. Set these with
+`--led-spacing-mm`, `--led-height-mm`, `--glass-thickness-mm`, and
+`--glass-refractive-index`. Zero glass thickness disables refraction. Optional
+`--led-rotation-deg` rotates grid positions, then `--led-offset-x-mm` and
+`--led-offset-y-mm` translate them. TOML uses the corresponding underscore names.
+The presets use the UConn acquisition parameters; adjust them to match the rig.
 
-optics = OpticalConfig(
-    pixel_size_m=measurements.pixel_size_m,
-    wavelength_m=532e-9,
-    aperture_diameter_m=0.07999,
-    object_distance_m=2.0,
-)
-model = FourierPtychographyModel(
-    optics=optics,
-    grid=ReconstructionGrid(measurements.intensities.shape[1:], upsample=2),
-    wavevectors_rad_per_m=measurements.wavevectors_rad_per_m,
-    compute=TorchConfig(),  # prefer an accelerator and its highest supported precision
-)
-result = SaviReconstructor(model, SolverOptions(epochs=3)).reconstruct(measurements)
-```
+The adapter solves the ray displacement through air and glass using Snell's law.
+Positive LED coordinates produce negative incident transverse wavevectors. It
+converts direction cosines directly to wavevectors, with no extra sine operation.
+Frame counts must match the calibration; preprocessing preserves the cropped field
+of view and updates measurement pixel spacing.
 
-`simulate_measurements(object_field, model)` produces the same `MeasurementSet`.
-Solvers accept an optional complex `initial_field` and an epoch metrics callback.
-Result `amplitude` and `phase` are derived from the retained complex object field.
+## Reconstruction algorithms
 
-## Structure and conventions
+Pupil recovery is enabled for the two projection algorithms. The initial pupil is
+the nominal circular aperture; the initial object is the Fourier transform of resized mean
+measurement intensity. Updates retain the complex object and pupil.
 
-- `config.py`: frozen physical, grid, and solver settings; no argument parsing.
-- `tensors.py`: runtime-probed device and precision selection.
-- `reporting.py`: resolved physical, numerical, and runtime settings for CLI runs.
-- `data.py`: owned intensity arrays, wavevectors, effective sampling, and frame IDs.
-- `io/`: source-specific decoding, with geometry supplied in acquisition order.
-- `preprocessing.py`: center crop and resize, including effective pixel spacing.
-- `geometry.py`: explicit acquisition-to-wavevector conversions and ordering.
-- `fft.py`, `optics.py`: spatial-axis FFTs, pupil support, frequency patches,
-  field/intensity prediction, and amplitude error evaluation.
-- `reconstructors/`: algorithm implementations with one common protocol.
-- `simulation.py`: synthetic measurements through the shared optical model.
-- `results.py`, `plotting.py`: numerical export and optional visualization.
-- `cli.py`: TOML/argument parsing and composition of these components.
+- `--algorithm savi` (default): joint phase retrieval using Eqs. (6)-(11) of
+  Holloway et al., [SAVI, Science Advances 3, e1602564 (2017)](https://doi.org/10.1126/sciadv.1602564).
+  Each measurement produces one adaptive object correction and one pupil
+  correction from the same pre-update fields. The pupil step uses the maximum
+  magnitude of the entire object spectrum. The paper's enlarged pupil support
+  is implemented as a disk of twice the nominal radius and diameter, clipped to
+  the measurement grid. The paper's separate speckle-denoising stage is not applied.
+- `--algorithm alternating_projection`: joint object/pupil amplitude projection,
+  with corrections normalized by the maximum squared pupil and object-patch
+  magnitudes. Pupil support is the nominal aperture.
+- `--algorithm wirtinger_flow`: fixed-pupil batch descent on
+  `L(z) = mean((abs(Az)**2 - I)**2) / 2`, where `z` is the centered object spectrum.
+  It uses the intensity-loss Wirtinger formulation of
+  [Candès, Li, and Soltanolkotabi (2015)](https://arxiv.org/abs/1407.1065), adapted
+  to the package optical operator. The complex gradient is
+  `2 A*((abs(Az)**2 - I) * Az) / I.numel()`, including FFT normalization and overlap
+  sums. A curvature-scaled starting step and backtracking enforce intensity-loss
+  descent. Each epoch is one full-data update; fields are processed one at a time.
+  It uses resized mean-intensity initialization or a supplied `initial_field`.
+  A supplied `initial_pupil` is held fixed within the nominal support. Pupil learning
+  and projection stabilizer settings do not affect this solver. Amplitude RMSE is
+  reported for comparison; the minimized objective is intensity error.
 
-Measurement tensors are **intensities**, shaped `(frames, height, width)`. Geometry
-columns are `(kx, ky)` in **rad/m**, while image axes are `(y, x)`. Internal lengths
-are meters. The CLI retains legacy mm aperture/translation options and named
-wavelengths; `--pixel_size_um` specifies native spacing for loaded array images,
-or measurement spacing for synthetic acquisitions. Cropping preserves spacing;
-resizing preserves the cropped field of view and updates spacing. NPY data keeps
-its scale; integer rasters use their dtype's full range, including 16-bit images.
-This corrects legacy preprocessing when resizing changes resolution.
+For projection algorithms, `--learning` and `--pupil-learning` control the two update
+relaxations. Unit values use the full corrections; for SAVI these are the published Eqs. (10)-(11).
+`--object-epsilon` and `--pupil-epsilon` set SAVI's tau1/tau2 stabilizers and
+protect the normalized alternating-projection updates from zero denominators.
 
-The model uses Torch FFTs with default backward normalization and centered spectra. A measured field is
-`ifft2c(object_spectrum_patch * pupil) / upsample**2`; intensity is its squared
-magnitude. Output pixel spacing is `measurement_pixel_size / upsample`.
-Bounds are validated before reconstruction. The array adapter preserves the
-legacy array angle/sign convention and assumes numbered files already follow
-spiral acquisition order. Even-sized arrays use a complete spiral traversal;
-the legacy traversal can leave entries uninitialized for those sizes.
+## Device and precision
 
-`SaviReconstructor` deliberately preserves both active object corrections in the
-current SAVI prototype, using the same residual for both. It does not activate
-its commented-out pupil recovery or denoising. Alternating projection preserves
-the MATLAB-style main loop without its separate momentum stage. Mean-intensity
-initialization is retained for numerical comparison with both legacy loops.
-`history` includes initial amplitude RMSE at epoch 0 and one value per epoch;
-callbacks run after each completed epoch.
+Device and precision default to `auto`. Available devices are tried in order:
+CUDA, MPS, CPU. Each device is tested with float64/complex128 first, followed by
+float32/complex64. This favors an accelerator and its highest supported complex
+FFT precision; it does not benchmark individual image sizes.
 
-## Validation
+`--device cpu`, `--device cuda[:index]`, or `--device mps` selects a device.
+`--precision float32` or `--precision float64` fixes precision. Explicit requests
+are strict; unsupported combinations fail rather than silently changing them.
+`--device cpu --precision float64` is the numerical reference configuration.
+
+## Results and debugging
+
+`--output result.npz` saves `object_field`, `pupil`, frame IDs, wavevectors, epoch
+numbers, amplitude RMSE, and JSON settings, including acquisition/calibration,
+pupil recovery support, and compute settings. Load with `numpy.load(path, allow_pickle=False)`.
+`--show` displays the final object amplitude and phase.
+
+`--debug` opens live reconstruction views. `--debug-every 25` samples every 25
+measurement updates, plus initialization and epoch boundaries. `--debug-dir PATH`
+saves PNG snapshots and works without a GUI; it can be combined with `--debug`.
+
+Default views show object amplitude, log spectrum magnitude, recovered pupil
+amplitude/phase, signed intensity residual, and amplitude RMSE. Select panels with
+`--debug-views`: `amplitude`, `phase`, `spectrum`, `pupil_amplitude`, `pupil_phase`,
+`measurement`, `prediction`, `residual`, `update`, `pupil_update`, `convergence`.
+Snapshots are detached copies and cannot change solver state. No snapshots are
+allocated when debugging is disabled. Closing the live window lets solving continue.
+
+## Package structure
+
+| Module | Responsibility |
+| --- | --- |
+| `config.py`, `tensors.py` | Physical/grid/solver settings and compute resolution |
+| `data.py`, `io/`, `preprocessing.py` | Measurement ownership, file decoding, sampling |
+| `geometry.py` | Acquisition ordering and transverse wavevectors |
+| `fft.py`, `optics.py` | Centered FFTs, pupil supports, differentiable fields/losses/adjoint |
+| `reconstructors/` | Projection and Wirtinger algorithms and common protocol |
+| `simulation.py` | Synthetic measurements through the optical model |
+| `diagnostics.py`, `plotting.py` | State snapshots and live/file visualization |
+| `results.py`, `reporting.py`, `cli.py` | Numerical export, run summary, command orchestration |
+
+## Development and numerical conventions
 
 ```sh
-PYTHONPATH=src .venv/bin/python -B -m unittest discover -s tests -v
+uv run python -B -m unittest discover -s tests -v
 ```
 
-The tests compare both migrated solver loops against numerical functions
-extracted from the legacy source without importing its global CLI. They also
-check independent forward calculations, FFT scaling for odd/rectangular grids,
-measurement/geometry alignment, preprocessing sampling, 16-bit image loading,
-synthetic convergence, lossless export, CLI composition, and import side effects.
-Torch-specific checks verify the field adjoint, complex autograd for the object
-and pupil, precision/device consistency, snapshot isolation, and debug rendering.
+Tests cover the paper update equations, synthetic pupil recovery, support bounds,
+state isolation, FFT scaling, adjoints and complex gradients, HDR and raster I/O,
+LED refraction, Wirtinger descent, device selection, and CLI reporting.
 
-## Torch computation
-
-Data, preprocessing, geometry, FFTs, forward prediction, solver updates, and result
-arrays now use Torch tensors. NumPy remains at NPY/NPZ file boundaries; OpenCV
-only decodes images. Plotting explicitly detaches tensors and transfers displayed
-arrays to CPU. No NumPy conversion or CPU image resize occurs in the solver loop.
-
-Both device and precision default to `auto`, in the CLI and Python API.
-Resolution tries available CUDA, then MPS, then CPU. On each device it tries
-float64 / complex128 first, then float32 / complex64, testing forward and inverse
-complex FFTs in the installed Torch runtime. This prefers an accelerator and its
-highest supported precision; it does not benchmark which device is fastest for
-a particular image size. A typical CUDA or CPU selection is float64 / complex128;
-a typical MPS selection is float32 / complex64.
-
-Use `--device cpu`, `--device cuda`, `--device cuda:0`, or `--device mps` to select
-a device explicitly. Use `--precision float32` or `--precision float64` to fix
-precision. Explicit settings are strict: an explicit device never silently moves
-to CPU, and explicit float64 never silently becomes float32. For example,
-`--device auto --precision float64` may select CPU if the available accelerator
-cannot run complex128. CPU double precision remains the reference configuration
-for numerical regression tests.
-
-Every CLI run prints a startup summary before reconstruction: data source and
-intensity range, wavelength, aperture, object distance, numerical aperture,
-effective measurement/output pixel sizes and field of view, reconstruction grid,
-geometry, pupil support, solver/epochs/learning rate, requested and resolved
-compute settings, Torch version, debugging, and output settings. The summary
-uses sampling after preprocessing and the resolved dtypes, rather than just the
-requested defaults. `model.requested_compute` retains the request while
-`model.compute` holds the resolved device and precision.
-
-Images are transferred to the model's device and precision once at solver entry.
-Geometry stays in Torch CPU float64 so integer patch rounding is reproducible;
-pupil support is computed there once and transferred before iteration. No global
-default dtype/device is changed. Input NumPy arrays remain accepted at API entry,
-but results, predictions, and measurements are Torch tensors. Measurement inputs
-are copied and detached; treat their owned tensors as read-only, since Torch does
-not enforce read-only arrays. `measurements.to(device=..., dtype=...)` creates a
-new dataset. The `.npz` result format remains unchanged and records compute settings.
-
-## Debugging reconstruction
-
-Show live updates, sampled every 25 frame updates and at every epoch boundary:
+Validate available local acquisitions at native resolution with all three solvers:
 
 ```sh
-uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 3 \
-    --debug --debug-every 25
+FP_TEST_DATASETS=1 uv run python -B -m unittest discover -s tests -p test_datasets.py -v
 ```
 
-The default panels show object amplitude, log spectrum magnitude, pupil amplitude,
-pupil phase, signed intensity residual, and amplitude RMSE. The current projection
-solvers keep the pupil fixed: its display will remain constant until a solver
-estimates it. Choose panels explicitly, including measurement, prediction,
-object phase, or the current patch correction:
+These checks use `configs/` presets for USAF HDR, MouseKidney HDR, numbered USAF LED
+PNGs, and the nonspeckle array capture. Each verifies 225-frame reconstruction,
+finite object/pupil results, decreasing amplitude RMSE over three epochs, and NPZ
+export. Missing local datasets are skipped. These are acquisition/solver smoke
+checks; they do not establish ground-truth image accuracy or optical calibration.
 
-```sh
-uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 3 \
-    --debug --debug-every 25 \
-    --debug-views spectrum pupil_amplitude pupil_phase residual update convergence
-```
+Measurements are intensity tensors `(frames, height, width)`. Geometry columns are
+`(kx, ky)` in rad/m; image axes are `(y, x)`. Internal lengths are meters. Spectra
+are centered with Torch's default backward FFT normalization; measured fields are
+`ifft2c(object_spectrum_patch * pupil) / upsample**2`. Reconstructed pixel spacing
+is the effective measurement spacing divided by `upsample`.
 
-Save snapshots without opening any GUI, or combine this with `--debug` for both:
-
-```sh
-uv run fp Data/LED_sim/nonspeckle_incoherent_capture --epochs 1 \
-    --debug-dir debug_frames --debug-every 50
-```
-
-No state snapshots are allocated when debugging is disabled. Snapshots are detached
-clones on the compute device, created only at the selected interval plus initial
-and epoch boundaries. Only rendering transfers them to CPU. Keeping every snapshot
-in a custom observer consumes memory, so set a suitable interval for large images.
-Closing a live debug window stops its rendering while reconstruction continues.
-
-The Python observer API is independent of plotting and of solver update strategy:
-
-```python
-from fp.plotting import ReconstructionVisualizer
-
-visualizer = ReconstructionVisualizer(
-    views=("spectrum", "pupil_amplitude", "residual"), show=True,
-)
-result = SaviReconstructor(model, SolverOptions(epochs=3)).reconstruct(
-    measurements, observer=visualizer, observer_interval=25,
-)
-visualizer.finish()
-```
-
-A custom `observer(state)` receives `IterationState`: epoch, update count, centered
-spectrum, pupil, optional frame index, optional epoch metrics, and an `extras`
-dictionary of tensors. Projection extras include measurement, current prediction,
-signed residual, and patch correction. A batch or gradient method can omit the
-frame index and supply gradients, pupil corrections, or noise estimates instead.
-The separate `callback(metrics)` API still reports completed epochs.
-
-## Adding reconstruction approaches
-
-The `Reconstructor` protocol specifies inputs, output, progress, and observer hooks;
-it does not impose a projection update loop or inheritance hierarchy. A Wirtinger
-solver should own its parameters, loss, step schedule, noise model, and iteration
-strategy, and return the common `ReconstructionResult`.
-
-The shared model now exposes the required Torch building blocks:
-
-- `forward_fields(spectrum, pupil=None)`: differentiable linear field operator A.
-- `adjoint_fields(fields, pupil=None)`: Hermitian adjoint A*, with FFT scaling and
-  overlap sums. It is not an inverse and does not average over measurements.
-- `intensity_loss(spectrum, intensities, pupil=None)`: differentiable half mean
-  squared intensity error, without detaching or converting its tensor result.
-- `amplitude_rmse(spectrum, intensities, pupil=None)`: evaluate the current pupil
-  estimate when reporting reconstruction progress.
-- `predict_intensities(object_field, pupil=None)`: differentiable object-field
-  prediction, including gradients with respect to a supplied pupil estimate.
-
-Use `torch.autograd.grad(loss, spectrum)` or the explicit adjoint for complex
-optimization. `pupil` arguments let the solver own a changing pupil separately
-from fixed `pupil_support`. Projection solvers alone run under `torch.no_grad()`;
-the model is fully differentiable. `fp.diagnostics.emit_state` creates graph-free
-observer snapshots for any future optimizer. Tests check the complex inner-product
-identity, the explicit Wirtinger intensity gradient against autograd, and numerical
-gradients with respect to both the object spectrum and the pupil.
-
-The future Wirtinger optimizer itself is not implemented in this increment.
-Additional acquisition adapters and algorithm changes remain separate work.
+A reconstructor implements `Reconstructor.reconstruct(...)`, accepts a
+`MeasurementSet`, and returns `ReconstructionResult`. `initial_field` and
+`initial_pupil` accept numerical starting estimates; `callback(metrics)` reports
+epochs, and `observer(state)` receives detached spectrum, pupil, and diagnostics.
+Updates belong in the reconstructor; optical operators and file decoding remain
+separate. Keep custom pupils local to the solver and pass them to model methods.
+Metrics must use the current pupil estimate. Never mutate the shared model's
+nominal pupil or support. Model operators retain autograd; explicit solver loops use
+`torch.no_grad()`. NumPy is used at array/MATLAB file boundaries and for display conversion.

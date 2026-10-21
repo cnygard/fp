@@ -7,7 +7,7 @@ from .tensors import real_tensor
 
 
 def resize_image(image, shape):
-    """Bilinear half-pixel interpolation, matching legacy OpenCV resize semantics."""
+    """Bilinear half-pixel interpolation, matching OpenCV resize semantics."""
     image = real_tensor(image)
     if image.ndim != 2 or min(image.shape) < 1:
         raise ValueError("expected a nonempty grayscale image")

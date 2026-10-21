@@ -1,4 +1,4 @@
-"""Load the existing numbered array-simulation files without CLI dependencies."""
+"""Load numbered intensity files without CLI dependencies."""
 
 from dataclasses import dataclass
 from math import isclose
@@ -26,6 +26,7 @@ class ArraySimLoader:
     pixel_size_m: float
     resolution: int = 300
     file_extension: str = ".npy"
+    frame_pattern: str = "{index:04d}"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -38,12 +39,21 @@ class ArraySimLoader:
         if not self.file_extension.startswith(".") or "/" in self.file_extension:
             raise ValueError("file_extension must be a suffix such as .npy or .tif")
 
+        try:
+            names = [self.frame_pattern.format(index=i) for i in range(len(self.wavevectors_rad_per_m))]
+        except (ValueError, KeyError, IndexError, AttributeError) as error:
+            raise ValueError("frame_pattern must format an index, e.g. {index:04d}") from error
+        if any(not name or Path(name).name != name or "\\" in name for name in names):
+            raise ValueError("frame_pattern must produce basenames within the dataset directory")
+        if len(set(names)) != len(names):
+            raise ValueError("frame_pattern must produce a unique name for each frame")
+
     def load(self, directory: str | Path) -> MeasurementSet:
         directory = Path(directory)
         images, frame_ids = [], []
         effective_spacing = None
         for index in range(len(self.wavevectors_rad_per_m)):
-            path = directory / f"{index:04d}{self.file_extension}"
+            path = directory / f"{self.frame_pattern.format(index=index)}{self.file_extension}"
             if not path.is_file():
                 raise FileNotFoundError(path)
             if path.suffix.lower() == ".npy":

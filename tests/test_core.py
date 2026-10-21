@@ -1,6 +1,5 @@
-"""Numerical contracts and parity checks for the first migration increment."""
+"""Core data, geometry, optics, reconstruction, export, and CLI contracts."""
 
-import ast
 from contextlib import redirect_stdout, redirect_stderr
 import io
 import json
@@ -8,7 +7,6 @@ from pathlib import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 import unittest
 
 import cv2
@@ -84,7 +82,7 @@ class MeasurementTests(unittest.TestCase):
 
 
 class GeometryAndOpticsTests(unittest.TestCase):
-    def test_spiral_is_complete_and_matches_legacy_for_supported_odd_arrays(self):
+    def test_spiral_is_complete_and_matches_expected_acquisition_order(self):
         for side in (1, 2, 3, 4, 15):
             order = spiral_order(side)
             assert_array_equal(np.sort(order), np.arange(side ** 2))
@@ -153,49 +151,12 @@ class GeometryAndOpticsTests(unittest.TestCase):
 
 
 class ReconstructionTests(unittest.TestCase):
-    def legacy_result(self, filename, observations, model, options):
-        # Extract only numerical definitions: importing the legacy modules would
-        # parse process arguments and read a dataset configuration as a side effect.
-        namespace = {"np": np, "cv2": cv2, "tqdm": lambda values: values,
-                     "args": SimpleNamespace(learning=options.learning_rate, debug=False, momentum=0)}
-        util_tree = ast.parse((ROOT / "util.py").read_text())
-        helpers = {"matlab_round", "F", "iF", "find_bounds", "kspace_parameterize"}
-        nodes = [node for node in util_tree.body if isinstance(node, ast.FunctionDef) and node.name in helpers]
-        exec(compile(ast.Module(body=nodes, type_ignores=[]), "legacy_helpers", "exec"), namespace)
-        tree = ast.parse((ROOT / filename).read_text())
-        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "reconstruction")
-        exec(compile(ast.Module(body=[function], type_ignores=[]), filename, "exec"), namespace)
-        class MaskAdapter:
-            def detach(self): return self
-            def cpu(self): return self
-            def numpy(self): return model.pupil.real.cpu().numpy().copy()
-        config = {"N": model.grid.measurement_shape[0], "out_N": model.grid.object_shape[0],
-                  "upsample": model.grid.upsample, "dx": model.optics.pixel_size_m,
-                  "k": model.optics.wavenumber_rad_per_m, "M": MaskAdapter()}
-        angles = np.arcsin(model.wavevectors_rad_per_m.cpu().numpy() / config["k"])
-        with redirect_stdout(io.StringIO()):
-            return namespace["reconstruction"](observations.copy(), angles, options.epochs, config)
-
-    def test_projection_algorithms_match_existing_numerical_loops(self):
-        model = make_model()
-        options = SolverOptions(3, .17)
-        observations = np.random.default_rng(42).uniform(.01, 1, size=(4, 8, 8))
-        measurements = MeasurementSet(observations, model.wavevectors_rad_per_m, model.optics.pixel_size_m)
-        for solver, filename in (
-            (SaviReconstructor, "savi_reconstruction.py"),
-            (AlternatingProjectionReconstructor, "matlab_reconstruction.py"),
-        ):
-            with self.subTest(solver=solver.__name__):
-                result = solver(model, options).reconstruct(measurements)
-                expected = self.legacy_result(filename, observations, model, options)
-                assert_allclose(result.object_field, expected, rtol=1e-12, atol=1e-12)
-        assert_array_equal(observations, measurements.intensities)
-
     def test_reconstruction_reduces_synthetic_measurement_error_and_is_repeatable(self):
         model = make_model((16, 16))
         y, x = np.mgrid[-1:1:32j, -1:1:32j]
         truth = (.3 + .5 * np.exp(-5 * (x ** 2 + y ** 2))) * np.exp(.2j * x)
         measurements = simulate_measurements(truth, model)
+        nominal_pupil = model.pupil.clone()
         for solver in (AlternatingProjectionReconstructor, SaviReconstructor):
             with self.subTest(solver=solver.__name__):
                 callbacks = []
@@ -205,7 +166,8 @@ class ReconstructionTests(unittest.TestCase):
                 self.assertEqual([entry.epoch for entry in callbacks], list(range(1, 9)))
                 assert_allclose(result.object_field, reconstructor.reconstruct(measurements).object_field)
                 self.assertTrue(result.object_field.is_complex())
-                assert_array_equal(model.pupil, result.pupil)
+                torch.testing.assert_close(model.pupil, nominal_pupil)
+                self.assertTrue(result.settings["pupil_recovery"]["enabled"])
 
     def test_lossless_result_export(self):
         model = make_model()
@@ -277,9 +239,13 @@ class LoaderAndCliTests(unittest.TestCase):
             ])
             with redirect_stdout(io.StringIO()):
                 result = run(args)
-            self.assertLess(result.history[-1].amplitude_rmse, result.history[0].amplitude_rmse)
+            # A single measurement does not identify both an object and pupil;
+            # convergence is tested separately with overlapping measurements.
+            self.assertTrue(torch.isfinite(result.object_field).all())
+            self.assertTrue(torch.isfinite(result.pupil).all())
+            self.assertTrue(result.settings["pupil_recovery"]["enabled"])
 
-    def test_cli_help_and_unsupported_legacy_source(self):
+    def test_cli_help_and_unsupported_source(self):
         with redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit) as caught:
                 parse_args(["--help"])

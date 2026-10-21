@@ -69,8 +69,14 @@ class ReconstructionGrid:
 @dataclass(frozen=True)
 class SolverOptions:
     epochs: int = 10
-    learning_rate: float = 0.1
+    learning_rate: float = 1.0
+    pupil_learning_rate: float = 1.0
+    object_epsilon: float = 1e-10
+    pupil_epsilon: float = 1e-10
 
     def __post_init__(self) -> None:
         _positive_integer("epochs", self.epochs)
         _positive("learning_rate", self.learning_rate)
+        _positive("pupil_learning_rate", self.pupil_learning_rate)
+        _positive("object_epsilon", self.object_epsilon)
+        _positive("pupil_epsilon", self.pupil_epsilon)
