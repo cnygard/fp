@@ -1,122 +1,127 @@
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
 import cv2
+import numpy as np
+import pywt
 from tqdm import tqdm
-from util import *
+
 from config import args
 from multi_wavelength import *
+from util import *
+
 
 def reconstruction(observations, Theta, num_epochs, config):
+    denoising_frequency = 10
+
     num_samples = observations.shape[0]
     num_angles = Theta.shape[0]
- 
+
     print(f"Number of observations: {num_samples}, Number of angles: {num_angles}")
 
     # guess = np.zeros((observations.shape[1], observations.shape[2]))
     # guess = np.copy(observations[7,:,:])
     guess = np.sum(observations, axis=0) / observations.shape[0]
-    print(guess.shape)
-    guess = cv2.resize(guess,
-                       (guess.shape[0] * config['upsample'],
-                        guess.shape[1] * config['upsample']))
+    guess = cv2.resize(
+        guess,
+        (guess.shape[0] * config["upsample"], guess.shape[1] * config["upsample"]),
+    )
     guessFT = F(guess)
 
-    region = np.zeros(guessFT.shape, dtype=np.complex128)
+    region = np.zeros(guessFT.shape)
 
-    # create kx/ky for all three wavelengths
-    kx = Theta[:,1]
-    ky = Theta[:,0]
-    dkx = 1
-    dky = 1
-    mask = config['M'].detach().cpu().numpy()
-    pupil = np.where(mask, 1.0, 0.0).astype(np.complex128)
-    og_pupil = np.copy(pupil)
+    kx, ky, dkx, dky = kspace_parameterize(Theta, config)
+    mask = config["M"].detach().cpu().numpy()
+    mask = np.where(mask, 1.0, 0.0)
+    pupil_support = mask.copy()
 
-    prog_bar = tqdm(range(num_epochs * num_samples))
+    prog_bar = tqdm(range(num_epochs))
     first = True
-    for m in prog_bar:
-        i = m % num_samples
-        # CJCJCJ take measurement and deconstruct into the three
-        # wavelengths. Run process three times per sample (once per sample
-        # per wavelength) after deconstruction, wavelengths become separate
-        # samples.
-        if args.mode == 'traditional':
-            measurements = np.expand_dims(observations[i], axis=-1)
-        else:
-            measurements = deconstruct_measurement_wavelengths(observations[i,:,:],
-                                                               kx[i].item(),ky[i].item(), # need to figure this out
-                                                               config)
-        for channel in range(measurements.shape[2]):
-            # adjust according to above kx/ky calculation
-            lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
+    for epoch in prog_bar:
+        for i in range(num_samples):
+            lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, config)
             # print(f'{lx} {hx} , {ly} {hy}')
-            r = guessFT[ly:hy, lx:hx]
-            r_filtered = r * pupil
-            low_res_guess = iF(r_filtered)
+            r = guessFT[ly:hy, lx:hx].copy()
+            r_masked = r * mask
+            low_res_guess = iF(r_masked)
 
-            # measurement = config['upsample']**2 * measurements[:,:,channel]
+            amplitude = config["upsample"] ** 2 * np.sqrt(observations[i, :, :])
+
+            # measurement_F = np.fft.fftshift(np.fft.fft2(measurement))
+            # def make_viewable(img):
+            #     return np.abs(np.log(1+img))
+            # img1 = f'measurement', measurement
+            # img2 = f'F', make_viewable(measurement_F)
+            # img3 = f'F_masked', make_viewable(measurement_F * mask)
+            # img4 = f'iF_F_masked', np.abs(np.fft.ifft2(np.fft.ifftshift(measurement_F * mask)))
+            # debug_print(img1,img2,img3,img4)
 
             # low_res_guess_new = np.sqrt(measurement) * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
-            # low_res_guess_FT = F(low_res_guess_new)
+            # low_res_guess_new = amplitude * low_res_guess / np.abs(low_res_guess)
+            low_res_guess_new = amplitude * np.exp(1j * np.angle(low_res_guess))
+            low_res_guess_FT = F(low_res_guess_new)
 
-            measurement = measurements[:,:,channel] * args.upsample**2
+            current_guess_max = np.abs(guessFT).max()
 
-            normal_low_res_guess = low_res_guess / np.abs(low_res_guess)
-            magnitude_constrained = np.sqrt(measurement) * normal_low_res_guess
-            magnitude_constrained_F = F(magnitude_constrained)
+            tau = 1e-10  # Tiny non-zero number for div by 0
+            mask_step_size = np.abs(mask) / np.abs(mask).max()
+            normal_mask = np.conj(mask) / (np.abs(mask) ** 2 + tau)
+            # guess_step_size = np.abs() / np.abs(mask).max()
+            new_info = low_res_guess_FT - r_masked
+            guessFT[ly:hy, lx:hx] = (
+                guessFT[ly:hy, lx:hx] + mask_step_size * normal_mask * new_info
+            )
 
-            pupil_step_size = np.abs(pupil) / np.max(np.abs(pupil))
-            regularized_pupil_inverse = np.conj(pupil) / (np.abs(pupil)**2 + 1e-10)
-            new_info = magnitude_constrained_F - r_filtered
-            guessFT[ly:hy,lx:hx] = r +      \
-                args.learning *             \
-                pupil_step_size *           \
-                regularized_pupil_inverse * \
-                new_info
+            # r_step_size = np.abs(r) / current_guess_max
+            # normal_r = np.conj(r) / (np.abs(r)**2 + tau)
+            # pupil_update = r_step_size * normal_r * new_info
+            # mask = (mask + pupil_update) * pupil_support
 
-            measurement_step_size = np.abs(r) / np.max(np.abs(r))
-            regularized_region_inverse = np.conj(r) / (np.abs(r)**2 + 1e-10)
-            pupil = pupil +                     \
-                args.learning *                 \
-                measurement_step_size *         \
-                regularized_region_inverse *    \
-                new_info * og_pupil
-            pupil = pupil * og_pupil
+            normalMask = np.conj(mask) / np.max((np.abs(mask)) ** 2)
+            newInfo = low_res_guess_FT - r_masked
+            guessFT[ly:hy, lx:hx] = (
+                guessFT[ly:hy, lx:hx] + args.learning * normalMask * newInfo
+            )
 
-            if args.debug and i == m:
-                region[ly:hy,lx:hx] =           \
-                    region[ly:hy,lx:hx] +       \
-                    args.learning *             \
-                    pupil_step_size *           \
-                    regularized_pupil_inverse * \
-                    new_info
-                # black = np.zeros(region.shape, dtype=np.complex128)
+            if args.debug and first:
+                region[ly:hy, lx:hx] = (
+                    region[ly:hy, lx:hx] + mask_step_size * normal_mask * new_info
+                )
+                # black = np.zeros(region.shape)
                 # black[ly:hy,lx:hx] =     \
-                #     pupil_step_size *           \
-                #     regularized_pupil_inverse * \
+                #     normal_mask *         \
                 #     new_info
                 guess = iF(guessFT)
-                img1 = f'{prog_bar.n:03}_{i:03}_Measurement', observations[i,:,:]
+                img1 = f"{prog_bar.n:03}_{i:03}_Measurement", observations[i, :, :]
                 # tmp = np.abs(np.sqrt(np.log(F(observations[i,:,:]))))
                 # img2 = f'{prog_bar.n:03}_{i:03}_', tmp - mask
-                img2 = f'{prog_bar.n:03}_{i:03}_Guess', np.abs(guess)
-                img3 = f'{prog_bar.n:03}_{i:03}_GuessF', np.abs(np.sqrt(np.log(1+guessFT)))
+                img2 = f"{prog_bar.n:03}_{i:03}_Guess", np.abs(guess)
+                img3 = (
+                    f"{prog_bar.n:03}_{i:03}_GuessF",
+                    np.abs(np.sqrt(np.log(guessFT))),
+                )
                 # img3 = f'{prog_bar.n:03}_{i:03}_Spectrum', np.abs(np.sqrt(np.log(region)))
                 # img4 = f'{prog_bar.n:03}_{i:03}_Mask', normalMask
-                img4 = f'{prog_bar.n:03}_{i:03}_Region', np.abs(np.log(1+region))
-                img5 = f'{prog_bar.n:03}_{i:03}_New', np.abs(np.sqrt(np.log(1+new_info)))
-                img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.abs(np.sqrt(np.log(1+ pupil_step_size * regularized_pupil_inverse * new_info)))
+                img4 = f"{prog_bar.n:03}_{i:03}_Region", np.abs(np.log(region))
+                img5 = f"{prog_bar.n:03}_{i:03}_New", np.abs(np.sqrt(np.log(new_info)))
+                # img6 = f'{prog_bar.n:03}_{i:03}_Acutally_Adding', np.abs(np.sqrt(np.log(normal_mask * new_info)))
+                img6 = f"{prog_bar.n:03}_{i:03}_Mask", np.abs(mask)
                 # img7 = f'black', np.abs(np.log(iF(black)))
-                debug_print(img1,img2,img3,img4,img5,img6,save=False)
-                # name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr_i{i}'
-                # cv2.imwrite(f'{name_thing}reconstruction_mid.jpg', np.abs(guess)*255)
+                debug_print(img1, img2, img3, img4, img5, img6, save=False)
+        # if (epoch + 1) % denoising_frequency == 0:
+        #     guess = iF(guessFT)
+        #     intensity = np.abs(guess ** 2)
+        #     xi = np.log(np.abs(guess) ** 2)
+        #     coeffs = pywt.wavedec2(xi, wavelet="sym8", level=2)
+        #     rho = 1
+        #     xi_denoised = np.sign(coeffs) * np.maximum(np.abs(coeffs) - rho, 0)
+        #     guess = np.exp(0.5 * xi_denoised) * np.exp(1j * np.angle(guess))
+        #     guessFT = F(guess)
+        first = False
 
     return iF(guessFT)
+
 
 def sim(observations, Theta, num_epochs, config):
     return reconstruction(observations, Theta, num_epochs, config)
 
+
 def real(observations, Theta, num_epochs, config):
     return reconstruction(observations, Theta, num_epochs, config)
-

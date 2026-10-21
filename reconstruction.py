@@ -1,18 +1,27 @@
 import cv2
-import matlab_reconstruction
 import matplotlib.pyplot as plt
-import ml_reconstruction
-import savi_reconstruction
 import numpy as np
 import scipy
 import torch
+from tqdm import tqdm
+
+import matlab_reconstruction
+import ml_reconstruction
+import savi_reconstruction
+import wirtinger_flow_reconstruction
 from config import *
 from config import args
 from forward_model import *
 from load_data import *
-from tqdm import tqdm
-
 from util import *
+
+# device = torch.device(
+#     "cuda"
+#     if torch.cuda.is_available()
+#     else "mps"
+#     if torch.backends.mps.is_available()
+#     else "cpu"
+# )
 
 # ===== Real data =====
 if __name__ == "__main__":
@@ -29,6 +38,9 @@ if __name__ == "__main__":
         samples_np, Theta, real_config = load_waller_images(data_loc)
     elif args.source == "sim":
         samples_np, Theta, real_config = load_sim_images(data_loc)
+    else:
+        print(f'Unknown data source {args.source}')
+        exit(1)
 
     if args.observations:
         samples_per = 20
@@ -57,12 +69,15 @@ if __name__ == "__main__":
     # luh = [14,12,10,8,6,4,2,0,1,3,5,7,9,11,13] # move inside to outside
     # luh = [7,6,8,5,9,4,10,3,11,2,12,1,13,0,14]
 
-    pred = matlab_reconstruction.real(
-        samples_np, Theta, num_epochs=args.epochs, config=real_config
-    )
-    # pred = savi_reconstruction.real(
+    # pred = matlab_reconstruction.real(
     #     samples_np, Theta, num_epochs=args.epochs, config=real_config
     # )
+    # pred = wirtinger_flow_reconstruction.real(
+    #     samples_np, Theta, num_epochs=args.epochs, config=real_config
+    # )
+    pred = savi_reconstruction.real(
+        samples_np, Theta, num_epochs=args.epochs, config=real_config
+    )
     print(f"Samples shape {samples_np[0,:,:].shape}, Result shape {pred.shape}")
     if args.save:
         name_thing = f'{args.data_dir}/{args.epochs}e_{args.resolution}r_{args.learning}lr'

@@ -25,7 +25,7 @@ def load_umd_pi_images(data_dir):
         G = ((G1.astype(np.uint32) + G2.astype(np.uint32)) // 2).astype(np.uint16)
         img = (G >> 2).astype(np.uint8)
         if True:
-            observations_raw[i,:,:] = np.sqrt(img[top:bottom,left:right])
+            observations_raw[i,:,:] = img[top:bottom,left:right]
         elif img.shape[0] != img.shape[1]:
             # left = int((np.max(img[:,:,0].shape) - np.min(img[:,:,0].shape)) / 2)
             # right = left + np.min(img[:,:,0].shape)
@@ -70,8 +70,7 @@ def load_umd_bench_images(data_dir):
             right = left + np.min(img.shape)
             resized = cv2.resize(img[:,left:right], (size,size))
             # exposure_adjusted = resized / (exposures[i] / np.min(exposures))
-            amplitude = np.sqrt(resized)
-            observations_raw[i,:,:] = amplitude
+            observations_raw[i,:,:] = resized
         else:
             observations_raw[i,:,:] = img
 
@@ -119,7 +118,10 @@ def load_array_sim_images(data_dir):
     # === Load images ===
     for i in range(N):
         fname = f'{data_dir}/{i:04d}{args.file_extension}'
-        img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)/255.0
+        if args.file_extension == '.npy':
+            img = np.load(fname)
+        else:
+            img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)/255.0
         # distance_from_center_px = np.sqrt(shift[i][1]**2 + shift[i][0]**2) + 1e-10
         # print(distance_from_center_px)
         # img = img / distance_from_center_px # divide by distance from center
@@ -131,7 +133,7 @@ def load_array_sim_images(data_dir):
         else:
             observations_raw[i,:,:] = img
 
-    samples_np = np.sqrt(observations_raw)
+    samples_np = observations_raw
     # samples_np = np.sqrt(observations_raw) # convert to amplitude
 
     return samples_np, Theta, real_config
@@ -231,5 +233,6 @@ def load_sim_images(data_dir):
     for i in range(N):
         lx, ly, hx, hy = find_bounds(kx[i].item(), ky[i].item(), dkx, dky, sim_config)
         masked = O[ly:hy, lx:hx] * mask
-        observations[i, :, :] = np.abs(iF(masked))
+        field = iF(masked) / sim_config['upsample'] ** 2
+        observations[i, :, :] = np.abs(field) ** 2
     return observations, Theta, sim_config

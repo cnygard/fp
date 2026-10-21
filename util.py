@@ -144,17 +144,23 @@ def rearrange(original, order):
     return output
 
 def find_bounds(x,y,dx,dy,config):
-    center_of_output = (config['out_N'] + 1) // 2
-    centerX = matlab_round(center_of_output - x / dx)
-    centerY = matlab_round(center_of_output - y / dy)
-    # print(f'xy {center_of_output - x},{center_of_output - y}')
-    # print(f'center xy {centerX},{centerY}')
-    lowX  = matlab_round(centerX - (config['N']-1)/2)
-    lowY  = matlab_round(centerY - (config['N']-1)/2)
-    highX = matlab_round(centerX + (config['N']-1)/2) + 1
-    highY = matlab_round(centerY + (config['N']-1)/2) + 1
-    # import pdb;pdb.set_trace()
-    return lowX, lowY, highX, highY
+    # center_of_output = (config['out_N'] + 1) // 2
+    # centerX = matlab_round(center_of_output - x / dx)
+    # centerY = matlab_round(center_of_output - y / dy)
+    # # print(f'xy {center_of_output - x},{center_of_output - y}')
+    # # print(f'center xy {centerX},{centerY}')
+    # lowX  = matlab_round(centerX - (config['N']-1)/2)
+    # lowY  = matlab_round(centerY - (config['N']-1)/2)
+    # highX = matlab_round(centerX + (config['N']-1)/2) + 1
+    # highY = matlab_round(centerY + (config['N']-1)/2) + 1
+    # # import pdb;pdb.set_trace()
+    # return lowX, lowY, highX, highY
+    center_of_output = config['out_N'] // 2
+    centerX = center_of_output + matlab_round(- x / dx)
+    centerY = center_of_output + matlab_round(- y / dy)
+    lowX  = centerX - config['N'] // 2
+    lowY  = centerY - config['N'] // 2
+    return lowX, lowY, lowX + config['N'], lowY + config['N']
 
 def kspace_parameterize(Theta, config):
     kx = config['k'] * np.sin(Theta[:,0]) # Angle on xz plane

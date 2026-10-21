@@ -1,0 +1,25 @@
+[project]
+name = "minimal-fpm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Christian Nygard", email = "seajay.nygard@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "opencv-python>=5.0.0.93",
+    "pywavelets>=1.10.0",
+    "scipy>=1.18.1",
+    "torch>=2.14.1",
+    "tqdm>=4.70.1",
+]
+
+[project.scripts]
+minimal-fpm = "minimal_fpm:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"

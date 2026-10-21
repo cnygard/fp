@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 
 import argparse
 import tomllib
@@ -159,6 +158,9 @@ def setup_config(sample_width: int, base_config: dict):
     config['upsample'] = args.upsample # ratio to scale output image
     config['out_dx'] = config['upsample'] / config['dx'] # pixel size in output
     config['out_N'] = config['N'] * config['upsample'] # width of output image
+
+    if hasattr(args, 'object_distance'):
+        config['object_distance'] = args.object_distance * m
 
     # === Define pupil mask (circular aperture) ===
     # print(f'Objective NA {config['NA_obj']:.2e}')

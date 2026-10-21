@@ -38,15 +38,16 @@ def reconstruction(observations, Theta, num_epochs, config):
             r_masked = r * mask
             low_res_guess = iF(r_masked)
 
-            measurement = config['upsample']**2 * observations[i,:,:]
+            amplitude = np.sqrt(observations[i,:,:])
+            measurement = config['upsample']**2 * amplitude
 
-            measurement_F = np.fft.fftshift(np.fft.fft2(measurement))
-            def make_viewable(img):
-                return np.abs(np.log(1+img))
-            img1 = f'measurement', measurement
-            img2 = f'F', make_viewable(measurement_F)
-            img3 = f'F_masked', make_viewable(measurement_F * mask)
-            img4 = f'iF_F_masked', np.abs(np.fft.ifft2(np.fft.ifftshift(measurement_F * mask)))
+            # measurement_F = np.fft.fftshift(np.fft.fft2(measurement))
+            # def make_viewable(img):
+            #     return np.abs(np.log(1+img))
+            # img1 = f'measurement', measurement
+            # img2 = f'F', make_viewable(measurement_F)
+            # img3 = f'F_masked', make_viewable(measurement_F * mask)
+            # img4 = f'iF_F_masked', np.abs(np.fft.ifft2(np.fft.ifftshift(measurement_F * mask)))
             # debug_print(img1,img2,img3,img4)
 
             low_res_guess_new = measurement * np.exp(1j*np.angle(low_res_guess)) # replace amplitude but preserve phase
@@ -61,7 +62,6 @@ def reconstruction(observations, Theta, num_epochs, config):
                 newInfo
 
             if args.debug and first:
-                break
                 region[ly:hy,lx:hx] =     \
                     region[ly:hy,lx:hx] + \
                     normalMask *          \
@@ -110,9 +110,12 @@ def reconstruction(observations, Theta, num_epochs, config):
             for i in range(num_samples):
                 countimg += 1
                 lx,ly,hx,hy = find_bounds(kx[i].item(),ky[i].item(),dkx,dky,config)
-                r = guessFT[ly:hy, lx:hx]
+                r = guessFT[ly:hy, lx:hx].copy()
                 r_masked = r * mask
                 low_res_guess = iF(r_masked)
+
+                # CJCJCJ observations are intensities so we need to sqrt to get
+                # amplitude
 
                 tt[i + (epoch * num_samples)] =                 \
                     np.mean(np.abs(low_res_guess))              \
