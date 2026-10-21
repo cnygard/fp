@@ -8,10 +8,10 @@ import numpy as np
 import torch
 from scipy.io import loadmat
 
-from ..config import _positive, _positive_integer
 from ..data import MeasurementSet, wavevectors_tensor
 from ..geometry import led_wavevectors
 from ..preprocessing import center_crop_resize
+from ..validation import require_positive, require_positive_integer
 
 
 def _read_mat(path, keys):
@@ -21,7 +21,9 @@ def _read_mat(path, keys):
     try:
         return loadmat(path, variable_names=keys)
     except NotImplementedError as error:
-        raise ValueError(f"{path}: MATLAB v7.3/HDF5 is unsupported; save as MATLAB v7 or earlier") from error
+        raise ValueError(
+            f"{path}: MATLAB v7.3/HDF5 is unsupported; save as MATLAB v7 or earlier"
+        ) from error
 
 
 @dataclass(frozen=True)
@@ -40,9 +42,9 @@ class LEDCalibration:
     offset_xy_m: tuple[float, float] = (0.0, 0.0)
     rotation_deg: float = 0.0
 
-    def __post_init__(self):
-        _positive("spacing_m", self.spacing_m)
-        _positive("height_m", self.height_m)
+    def __post_init__(self) -> None:
+        require_positive("spacing_m", self.spacing_m)
+        require_positive("height_m", self.height_m)
         if not isfinite(self.glass_thickness_m) or self.glass_thickness_m < 0:
             raise ValueError("glass_thickness_m must be finite and nonnegative")
         if not isfinite(self.glass_refractive_index) or self.glass_refractive_index < 1:
@@ -54,8 +56,8 @@ class LEDCalibration:
             raise ValueError("rotation_deg must be finite")
         object.__setattr__(self, "offset_xy_m", offset)
 
-    def load(self, path, wavelength_m):
-        _positive("wavelength_m", wavelength_m)
+    def load(self, path: str | Path, wavelength_m: float) -> torch.Tensor:
+        require_positive("wavelength_m", wavelength_m)
         values = _read_mat(path, ["wavevectors_rad_per_m", "xlocation_s", "ylocation_s"])
         if "wavevectors_rad_per_m" in values:
             geometry = wavevectors_tensor(values["wavevectors_rad_per_m"])
@@ -67,18 +69,21 @@ class LEDCalibration:
             if key not in values:
                 raise ValueError(f"{path}: missing LED calibration variable {key}")
             value = np.asarray(values[key])
-            if (value.ndim > 2 or value.size == 0
-                    or (value.ndim == 2 and min(value.shape) != 1)):
+            if value.ndim > 2 or value.size == 0 or (value.ndim == 2 and min(value.shape) != 1):
                 raise ValueError(f"{key} must be a nonempty row or column vector")
             locations.append(value.reshape(-1))
         if locations[0].shape != locations[1].shape:
             raise ValueError("LED x/y location counts must match")
         positions = wavevectors_tensor(np.stack(locations, axis=1)) * self.spacing_m
         angle = self.rotation_deg * pi / 180
-        rotation = torch.tensor([[cos(angle), -sin(angle)], [sin(angle), cos(angle)]], dtype=torch.float64)
+        rotation = torch.tensor(
+            [[cos(angle), -sin(angle)], [sin(angle), cos(angle)]], dtype=torch.float64
+        )
         positions = positions @ rotation.T + torch.tensor(self.offset_xy_m, dtype=torch.float64)
         return led_wavevectors(
-            positions, self.height_m, wavelength_m,
+            positions,
+            self.height_m,
+            wavelength_m,
             glass_thickness_m=self.glass_thickness_m,
             glass_refractive_index=self.glass_refractive_index,
         )
@@ -98,15 +103,17 @@ class MatlabHDRLoader:
     key: str = "imlow_HDR"
     intensity_scale: float = 1.0
 
-    def __post_init__(self):
-        object.__setattr__(self, "wavevectors_rad_per_m", wavevectors_tensor(self.wavevectors_rad_per_m))
-        _positive("pixel_size_m", self.pixel_size_m)
-        _positive_integer("resolution", self.resolution)
-        _positive("intensity_scale", self.intensity_scale)
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "wavevectors_rad_per_m", wavevectors_tensor(self.wavevectors_rad_per_m)
+        )
+        require_positive("pixel_size_m", self.pixel_size_m)
+        require_positive_integer("resolution", self.resolution)
+        require_positive("intensity_scale", self.intensity_scale)
         if not isinstance(self.key, str) or not self.key:
             raise ValueError("MATLAB intensity key must be a nonempty string")
 
-    def load(self, path):
+    def load(self, path: str | Path) -> MeasurementSet:
         path = Path(path)
         values = _read_mat(path, [self.key])
         if self.key not in values:
@@ -116,14 +123,22 @@ class MatlabHDRLoader:
             raise ValueError(f"{self.key} must have shape (height, width, frames)")
         if images.shape[2] != len(self.wavevectors_rad_per_m):
             raise ValueError("MATLAB frame count must match LED calibration count")
-        if (not np.issubdtype(images.dtype, np.number) or np.iscomplexobj(images)
-                or not np.isfinite(images).all() or (images < 0).any()):
+        if (
+            not np.issubdtype(images.dtype, np.number)
+            or np.iscomplexobj(images)
+            or not np.isfinite(images).all()
+            or (images < 0).any()
+        ):
             raise ValueError("MATLAB intensities must be real, finite and nonnegative")
         frames = []
         for index in range(images.shape[2]):
-            frame, spacing = center_crop_resize(images[:, :, index], self.resolution, self.pixel_size_m)
+            frame, spacing = center_crop_resize(
+                images[:, :, index], self.resolution, self.pixel_size_m
+            )
             frames.append(frame * self.intensity_scale)
         return MeasurementSet(
-            torch.stack(frames), self.wavevectors_rad_per_m, spacing,
+            torch.stack(frames),
+            self.wavevectors_rad_per_m,
+            spacing,
             tuple(f"{path.name}:{self.key}[{index}]" for index in range(images.shape[2])),
         )

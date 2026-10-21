@@ -1,5 +1,10 @@
 from .projection import AlternatingProjectionReconstructor, SaviReconstructor
-from .wirtinger import WirtingerFlowReconstructor
 from .protocol import Reconstructor
+from .wirtinger import WirtingerFlowReconstructor
 
-__all__ = ["AlternatingProjectionReconstructor", "SaviReconstructor", "Reconstructor", "WirtingerFlowReconstructor"]
+__all__ = [
+    "AlternatingProjectionReconstructor",
+    "SaviReconstructor",
+    "Reconstructor",
+    "WirtingerFlowReconstructor",
+]

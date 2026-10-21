@@ -1,17 +1,9 @@
 """Immutable physical and numerical settings. All physical lengths are meters."""
 
-from dataclasses import dataclass
-from math import atan, isfinite, pi, sin
+from dataclasses import dataclass, fields
+from math import atan, pi, sin
 
-
-def _positive(name: str, value: float) -> None:
-    if not isfinite(value) or value <= 0:
-        raise ValueError(f"{name} must be finite and positive")
-
-
-def _positive_integer(name: str, value: int) -> None:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"{name} must be a positive integer")
+from .validation import require_positive, require_positive_integer
 
 
 @dataclass(frozen=True)
@@ -29,8 +21,8 @@ class OpticalConfig:
     refractive_index: float = 1.0003
 
     def __post_init__(self) -> None:
-        for name in self.__dataclass_fields__:
-            _positive(name, getattr(self, name))
+        for setting in fields(self):
+            require_positive(setting.name, getattr(self, setting.name))
 
     @property
     def wavenumber_rad_per_m(self) -> float:
@@ -53,8 +45,8 @@ class ReconstructionGrid:
         if len(self.measurement_shape) != 2:
             raise ValueError("measurement_shape must contain height and width")
         for size in self.measurement_shape:
-            _positive_integer("measurement dimension", size)
-        _positive_integer("upsample", self.upsample)
+            require_positive_integer("measurement dimension", size)
+        require_positive_integer("upsample", self.upsample)
 
     @property
     def object_shape(self) -> tuple[int, int]:
@@ -75,8 +67,8 @@ class SolverOptions:
     pupil_epsilon: float = 1e-10
 
     def __post_init__(self) -> None:
-        _positive_integer("epochs", self.epochs)
-        _positive("learning_rate", self.learning_rate)
-        _positive("pupil_learning_rate", self.pupil_learning_rate)
-        _positive("object_epsilon", self.object_epsilon)
-        _positive("pupil_epsilon", self.pupil_epsilon)
+        require_positive_integer("epochs", self.epochs)
+        require_positive("learning_rate", self.learning_rate)
+        require_positive("pupil_learning_rate", self.pupil_learning_rate)
+        require_positive("object_epsilon", self.object_epsilon)
+        require_positive("pupil_epsilon", self.pupil_epsilon)

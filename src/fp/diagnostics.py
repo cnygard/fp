@@ -29,11 +29,18 @@ class IterationState:
 StateCallback = Callable[[IterationState], None]
 
 
-def emit_state(observer, *, epoch, step, spectrum, pupil, frame_index=None,
-               metrics=None, extras=None):
+def emit_state(
+    observer, *, epoch, step, spectrum, pupil, frame_index=None, metrics=None, extras=None
+):
     if observer is not None:
-        observer(IterationState(
-            epoch=epoch, step=step, spectrum=spectrum.detach().clone(),
-            pupil=pupil.detach().clone(), frame_index=frame_index, metrics=metrics,
-            extras={name: value.detach().clone() for name, value in (extras or {}).items()},
-        ))
+        observer(
+            IterationState(
+                epoch=epoch,
+                step=step,
+                spectrum=spectrum.detach().clone(),
+                pupil=pupil.detach().clone(),
+                frame_index=frame_index,
+                metrics=metrics,
+                extras={name: value.detach().clone() for name, value in (extras or {}).items()},
+            )
+        )

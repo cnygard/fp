@@ -185,19 +185,22 @@ allocated when debugging is disabled. Closing the live window lets solving conti
 
 | Module | Responsibility |
 | --- | --- |
-| `config.py`, `tensors.py` | Physical/grid/solver settings and compute resolution |
+| `config.py`, `validation.py`, `tensors.py` | Physical/grid/solver settings and compute resolution |
 | `data.py`, `io/`, `preprocessing.py` | Measurement ownership, file decoding, sampling |
 | `geometry.py` | Acquisition ordering and transverse wavevectors |
 | `fft.py`, `optics.py` | Centered FFTs, pupil supports, differentiable fields/losses/adjoint |
-| `reconstructors/` | Projection and Wirtinger algorithms and common protocol |
+| `reconstructors/` | Projection and Wirtinger algorithms, shared initialization/results, and common protocol |
 | `simulation.py` | Synthetic measurements through the optical model |
 | `diagnostics.py`, `plotting.py` | State snapshots and live/file visualization |
-| `results.py`, `reporting.py`, `cli.py` | Numerical export, run summary, command orchestration |
+| `arguments.py`, `cli.py` | CLI/TOML parsing, acquisition setup, and run orchestration |
+| `results.py`, `reporting.py` | Numerical export and run summary |
 
 ## Development and numerical conventions
 
 ```sh
 uv run python -B -m unittest discover -s tests -v
+uvx ruff check src
+uvx ruff format --check src
 ```
 
 Tests cover the paper update equations, synthetic pupil recovery, support bounds,

@@ -23,7 +23,9 @@ def format_run_summary(args, model, measurements, options):
         device_name = "Apple Metal GPU"
     else:
         device_name = f"CPU ({machine()})"
-    aperture_description = "equivalent aperture diameter" if args.objective_na is not None else "aperture diameter"
+    aperture_description = (
+        "equivalent aperture diameter" if args.objective_na is not None else "aperture diameter"
+    )
     native_spacing = args.pixel_size_um * 1e-6
     object_spacing = optics.pixel_size_m / grid.upsample
     fov_h, fov_w = (size * optics.pixel_size_m for size in grid.measurement_shape)
@@ -48,30 +50,72 @@ def format_run_summary(args, model, measurements, options):
             f"views: {', '.join(args.debug_views)}"
         )
     calibrated = args.source in ("matlab", "led")
-    geometry_description = "calibrated LED illumination" if calibrated else f"spacing {args.translation:.6g} mm"
-    pupil_description = "fixed pupil" if args.algorithm == "wirtinger_flow" else "joint recovery enabled"
-    solver_description = ("curvature-scaled backtracking; intensity loss; fixed pupil" if args.algorithm == "wirtinger_flow"
-                          else f"pupil learning rate {options.pupil_learning_rate:.6g}")
+    geometry_description = (
+        "calibrated LED illumination" if calibrated else f"spacing {args.translation:.6g} mm"
+    )
+    pupil_description = (
+        "fixed pupil" if args.algorithm == "wirtinger_flow" else "joint recovery enabled"
+    )
+    solver_description = (
+        "curvature-scaled backtracking; intensity loss; fixed pupil"
+        if args.algorithm == "wirtinger_flow"
+        else f"pupil learning rate {options.pupil_learning_rate:.6g}"
+    )
     objective_description = (
         "  Objective: half mean-squared intensity error; pupil controls and projection stabilizers unused"
-        if args.algorithm == "wirtinger_flow" else
-        f"  Stabilizers: object tau1={options.object_epsilon:.6g}, pupil tau2={options.pupil_epsilon:.6g}"
+        if args.algorithm == "wirtinger_flow"
+        else f"  Stabilizers: object tau1={options.object_epsilon:.6g}, pupil tau2={options.pupil_epsilon:.6g}"
     )
-    return "\n".join([
-        "fp reconstruction",
-        f"  Input: {Path(args.data_dir).resolve()} (source: {args.source})",
-        f"  Measurements: {_shape(measurements.intensities.shape)} (frames x height x width), intensity [{intensity_min:.6g}, {intensity_max:.6g}]",
-        f"  Optics: wavelength {optics.wavelength_m * 1e9:.6g} nm; {aperture_description} {optics.aperture_diameter_m * 1e3:.6g} mm; object distance {optics.object_distance_m:.6g} m",
-        f"  Aperture model: circular, free-space; NA {optics.numerical_aperture:.6g}; refractive index {optics.refractive_index:.6g}",
-        f"  Sampling: native {native_spacing * 1e6:.6g} um; measurement {optics.pixel_size_m * 1e6:.6g} um; reconstructed object {object_spacing * 1e6:.6g} um",
-        f"  Field of view (height x width): {fov_h * 1e3:.6g} x {fov_w * 1e3:.6g} mm",
-        f"  Reconstruction grid: {_shape(grid.measurement_shape)} -> {_shape(grid.object_shape)}; upsample {grid.upsample}x; field FFT scale 1/{grid.field_scale}",
-        f"  Geometry: {geometry_description}; kx [{kx_min:.6g}, {kx_max:.6g}], ky [{ky_min:.6g}, {ky_max:.6g}] rad/m; integer frequency patches",
-        f"  Pupil: {pupil_description}; support radius {support_scale:g}x nominal, {supported}/{pupil_pixels} pixels ({100 * supported / pupil_pixels:.3g}%); nominal aperture initialization",
-        f"  Solver: {args.algorithm}; epochs {options.epochs}; object learning rate {options.learning_rate:.6g}; {solver_description}; initialization: resized mean intensity",
-        objective_description,
-        f"  Compute: {model.device} ({device_name}); real {_dtype(model.real_dtype)}, complex {_dtype(model.complex_dtype)}; requested device={model.requested_compute.device}, precision={model.requested_compute.precision}",
-        f"  Torch: {torch.__version__}",
-        f"  Debug: {debug_summary}",
-        f"  Result file: {args.output if args.output is not None else 'disabled'}; final plot: {'on' if args.show else 'off'}",
-    ])
+    return "\n".join(
+        [
+            "fp reconstruction",
+            f"  Input: {Path(args.data_dir).resolve()} (source: {args.source})",
+            f"  Measurements: {_shape(measurements.intensities.shape)} (frames x height x width), intensity [{intensity_min:.6g}, {intensity_max:.6g}]",
+            (
+                f"  Optics: wavelength {optics.wavelength_m * 1e9:.6g} nm; "
+                f"{aperture_description} {optics.aperture_diameter_m * 1e3:.6g} mm; "
+                f"object distance {optics.object_distance_m:.6g} m"
+            ),
+            (
+                f"  Aperture model: circular, free-space; NA {optics.numerical_aperture:.6g}; "
+                f"refractive index {optics.refractive_index:.6g}"
+            ),
+            (
+                f"  Sampling: native {native_spacing * 1e6:.6g} um; "
+                f"measurement {optics.pixel_size_m * 1e6:.6g} um; "
+                f"reconstructed object {object_spacing * 1e6:.6g} um"
+            ),
+            f"  Field of view (height x width): {fov_h * 1e3:.6g} x {fov_w * 1e3:.6g} mm",
+            (
+                f"  Reconstruction grid: {_shape(grid.measurement_shape)} -> {_shape(grid.object_shape)}; "
+                f"upsample {grid.upsample}x; field FFT scale 1/{grid.field_scale}"
+            ),
+            (
+                f"  Geometry: {geometry_description}; "
+                f"kx [{kx_min:.6g}, {kx_max:.6g}], ky [{ky_min:.6g}, {ky_max:.6g}] rad/m; "
+                f"integer frequency patches"
+            ),
+            (
+                f"  Pupil: {pupil_description}; "
+                f"support radius {support_scale:g}x nominal, {supported}/{pupil_pixels} pixels ({100 * supported / pupil_pixels:.3g}%); "
+                f"nominal aperture initialization"
+            ),
+            (
+                f"  Solver: {args.algorithm}; epochs {options.epochs}; "
+                f"object learning rate {options.learning_rate:.6g}; {solver_description}; "
+                f"initialization: resized mean intensity"
+            ),
+            objective_description,
+            (
+                f"  Compute: {model.device} ({device_name}); "
+                f"real {_dtype(model.real_dtype)}, complex {_dtype(model.complex_dtype)}; "
+                f"requested device={model.requested_compute.device}, precision={model.requested_compute.precision}"
+            ),
+            f"  Torch: {torch.__version__}",
+            f"  Debug: {debug_summary}",
+            (
+                f"  Result file: {args.output if args.output is not None else 'disabled'}; "
+                f"final plot: {'on' if args.show else 'off'}"
+            ),
+        ]
+    )

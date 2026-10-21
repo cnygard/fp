@@ -4,10 +4,11 @@ from math import copysign, floor, isclose, pi, prod
 
 import torch
 
-from .config import OpticalConfig, ReconstructionGrid, _positive
+from .config import OpticalConfig, ReconstructionGrid
 from .data import MeasurementSet, wavevectors_tensor
 from .fft import fft2c, ifft2c
 from .tensors import TorchConfig
+from .validation import require_positive
 
 
 def _round_away_from_zero(value):
@@ -53,9 +54,7 @@ class FourierPtychographyModel:
         kx = (
             2
             * pi
-            * torch.fft.fftshift(
-                torch.fft.fftfreq(width, optics.pixel_size_m, dtype=torch.float64)
-            )
+            * torch.fft.fftshift(torch.fft.fftfreq(width, optics.pixel_size_m, dtype=torch.float64))
         )
         cutoff = optics.numerical_aperture * optics.wavenumber_rad_per_m
         self._pupil_radial_frequencies = torch.hypot(ky[:, None], kx[None, :])
@@ -77,7 +76,7 @@ class FourierPtychographyModel:
 
     def pupil_support_at_scale(self, radius_scale=1.0):
         """Circular frequency-domain support scaled relative to the nominal aperture."""
-        _positive("radius_scale", radius_scale)
+        require_positive("radius_scale", radius_scale)
         return (self._pupil_radial_frequencies <= self._pupil_cutoff * radius_scale).to(self.device)
 
     def as_complex(self, values):
@@ -89,21 +88,15 @@ class FourierPtychographyModel:
             *self.grid.measurement_shape,
         ):
             raise ValueError("measurement shape does not match the optical model")
-        if not torch.equal(
-            measurements.wavevectors_rad_per_m, self.wavevectors_rad_per_m
-        ):
-            raise ValueError(
-                "measurement geometry/order does not match the optical model"
-            )
+        if not torch.equal(measurements.wavevectors_rad_per_m, self.wavevectors_rad_per_m):
+            raise ValueError("measurement geometry/order does not match the optical model")
         if not isclose(
             measurements.pixel_size_m,
             self.optics.pixel_size_m,
             rel_tol=1e-12,
             abs_tol=0,
         ):
-            raise ValueError(
-                "measurement pixel spacing does not match the optical model"
-            )
+            raise ValueError("measurement pixel spacing does not match the optical model")
 
     def _pupil(self, pupil):
         pupil = self.pupil if pupil is None else self.as_complex(pupil)
@@ -114,12 +107,9 @@ class FourierPtychographyModel:
     def field_from_spectrum(self, object_spectrum, frame_index: int, *, pupil=None):
         spectrum = self.as_complex(object_spectrum)
         if spectrum.shape != self.grid.object_shape:
-            raise ValueError(
-                "object spectrum shape does not match the reconstruction grid"
-            )
+            raise ValueError("object spectrum shape does not match the reconstruction grid")
         return (
-            ifft2c(spectrum[self.patches[frame_index]] * self._pupil(pupil))
-            / self.grid.field_scale
+            ifft2c(spectrum[self.patches[frame_index]] * self._pupil(pupil)) / self.grid.field_scale
         )
 
     def forward_fields(self, object_spectrum, *, pupil=None):
@@ -141,42 +131,29 @@ class FourierPtychographyModel:
         if fields.shape != (len(self.patches), *self.grid.measurement_shape):
             raise ValueError("fields must match all measurement frames")
         filtered = fft2c(fields) * self._pupil(pupil).conj()
-        filtered = filtered / (
-            prod(self.grid.measurement_shape) * self.grid.field_scale
-        )
-        spectrum = torch.zeros(
-            self.grid.object_shape, device=self.device, dtype=self.complex_dtype
-        )
+        filtered = filtered / (prod(self.grid.measurement_shape) * self.grid.field_scale)
+        spectrum = torch.zeros(self.grid.object_shape, device=self.device, dtype=self.complex_dtype)
         for index, patch in enumerate(self.patches):
             spectrum[patch] += filtered[index]
         return spectrum
 
     def predict_intensities(self, object_field, *, pupil=None):
         object_field = self.as_complex(object_field)
-        if (
-            object_field.shape != self.grid.object_shape
-            or not torch.isfinite(object_field).all()
-        ):
-            raise ValueError(
-                "object field must be finite and match the reconstruction grid"
-            )
+        if object_field.shape != self.grid.object_shape or not torch.isfinite(object_field).all():
+            raise ValueError("object field must be finite and match the reconstruction grid")
         return self.forward_fields(fft2c(object_field), pupil=pupil).abs().square()
 
     def intensity_loss(self, object_spectrum, intensities, *, pupil=None):
         """Differentiable half mean-squared intensity error for complex optimization."""
         prediction = self.forward_fields(object_spectrum, pupil=pupil).abs().square()
-        observed = torch.as_tensor(
-            intensities, device=self.device, dtype=self.real_dtype
-        )
+        observed = torch.as_tensor(intensities, device=self.device, dtype=self.real_dtype)
         if observed.shape != prediction.shape:
             raise ValueError("intensities must match all measurement frames")
         return 0.5 * (prediction - observed).square().mean()
 
     @torch.no_grad()
     def amplitude_rmse(self, object_spectrum, intensities, *, pupil=None):
-        observed = torch.as_tensor(
-            intensities, device=self.device, dtype=self.real_dtype
-        )
+        observed = torch.as_tensor(intensities, device=self.device, dtype=self.real_dtype)
         if observed.shape != (len(self.patches), *self.grid.measurement_shape):
             raise ValueError("intensities must match all measurement frames")
         error = torch.zeros((), device=self.device, dtype=self.real_dtype)

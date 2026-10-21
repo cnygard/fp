@@ -8,7 +8,14 @@ import torch
 from .fft import ifft2c
 from .results import to_numpy
 
-DEFAULT_VIEWS = ("amplitude", "spectrum", "pupil_amplitude", "pupil_phase", "residual", "convergence")
+DEFAULT_VIEWS = (
+    "amplitude",
+    "spectrum",
+    "pupil_amplitude",
+    "pupil_phase",
+    "residual",
+    "convergence",
+)
 AVAILABLE_VIEWS = DEFAULT_VIEWS + ("phase", "measurement", "prediction", "update", "pupil_update")
 
 
@@ -31,12 +38,14 @@ class ReconstructionVisualizer:
         self.plt = None
         if show:
             import matplotlib.pyplot as plt
+
             self.plt = plt
             self.figure, axes = plt.subplots(rows, columns, figsize=(13, 4 * rows), squeeze=False)
         else:
             # Agg renders directly to files without initializing a GUI backend.
-            from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
+            from matplotlib.figure import Figure
+
             self.figure = Figure(figsize=(13, 4 * rows))
             FigureCanvasAgg(self.figure)
             axes = self.figure.subplots(rows, columns, squeeze=False)
@@ -63,42 +72,7 @@ class ReconstructionVisualizer:
             axis.set_visible(False)
         for axis, view in zip(self.axes, self.views):
             axis.set_visible(True)
-            if view == "convergence":
-                epochs = sorted(self.metrics)
-                axis.plot(epochs, [self.metrics[e] for e in epochs], marker=".")
-                axis.set_title("Amplitude RMSE")
-                axis.set_xlabel("Epoch")
-                axis.grid(alpha=0.2)
-                continue
-            cmap, limits = "gray", {}
-            title = view.replace("_", " ").title()
-            if view == "amplitude":
-                image = object_field.abs()
-            elif view == "phase":
-                image, cmap, limits = object_field.angle(), "twilight", {"vmin": -pi, "vmax": pi}
-            elif view == "spectrum":
-                image, title = state.spectrum.abs().log1p(), "Object spectrum: log(1 + magnitude)"
-            elif view == "pupil_amplitude":
-                image = state.pupil.abs()
-            elif view == "pupil_phase":
-                image = torch.where(state.pupil.abs() > 0, state.pupil.angle(), torch.nan)
-                cmap, limits = "twilight", {"vmin": -pi, "vmax": pi}
-            else:
-                image = state.extras.get(view)
-                if image is None:
-                    axis.text(0.5, 0.5, "No frame yet", ha="center", va="center", transform=axis.transAxes)
-                    axis.set_title(title)
-                    axis.axis("off")
-                    continue
-                if view in ("update", "pupil_update"):
-                    image = image.abs().log1p()
-                    title = "Pupil update: log(1 + magnitude)" if view == "pupil_update" else "Patch update: log(1 + magnitude)"
-                elif view == "residual":
-                    bound = max(float(image.abs().max().item()), 1e-12)
-                    cmap, limits = "coolwarm", {"vmin": -bound, "vmax": bound}
-            axis.imshow(to_numpy(image), cmap=cmap, **limits)
-            axis.set_title(title)
-            axis.axis("off")
+            self._draw_panel(axis, view, state, object_field)
         frame = "" if state.frame_index is None else f", frame {state.frame_index}"
         self.figure.suptitle(f"Epoch {state.epoch}, update {state.step}{frame}")
         self.figure.tight_layout()
@@ -108,6 +82,50 @@ class ReconstructionVisualizer:
             self.figure.canvas.draw_idle()
             self.figure.canvas.flush_events()
             self.plt.pause(0.001)
+
+    def _draw_panel(self, axis, view, state, object_field):
+        if view == "convergence":
+            epochs = sorted(self.metrics)
+            axis.plot(epochs, [self.metrics[e] for e in epochs], marker=".")
+            axis.set_title("Amplitude RMSE")
+            axis.set_xlabel("Epoch")
+            axis.grid(alpha=0.2)
+            return
+        cmap, limits = "gray", {}
+        title = view.replace("_", " ").title()
+        if view == "amplitude":
+            image = object_field.abs()
+        elif view == "phase":
+            image, cmap, limits = object_field.angle(), "twilight", {"vmin": -pi, "vmax": pi}
+        elif view == "spectrum":
+            image, title = state.spectrum.abs().log1p(), "Object spectrum: log(1 + magnitude)"
+        elif view == "pupil_amplitude":
+            image = state.pupil.abs()
+        elif view == "pupil_phase":
+            image = torch.where(state.pupil.abs() > 0, state.pupil.angle(), torch.nan)
+            cmap, limits = "twilight", {"vmin": -pi, "vmax": pi}
+        else:
+            image = state.extras.get(view)
+            if image is None:
+                axis.text(
+                    0.5, 0.5, "No frame yet", ha="center", va="center", transform=axis.transAxes
+                )
+                axis.set_title(title)
+                axis.axis("off")
+                return
+            if view in ("update", "pupil_update"):
+                image = image.abs().log1p()
+                title = (
+                    "Pupil update: log(1 + magnitude)"
+                    if view == "pupil_update"
+                    else "Patch update: log(1 + magnitude)"
+                )
+            elif view == "residual":
+                bound = max(float(image.abs().max().item()), 1e-12)
+                cmap, limits = "coolwarm", {"vmin": -bound, "vmax": bound}
+        axis.imshow(to_numpy(image), cmap=cmap, **limits)
+        axis.set_title(title)
+        axis.axis("off")
 
     def finish(self):
         if self.show and not self.disabled:

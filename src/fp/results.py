@@ -23,11 +23,11 @@ class ReconstructionResult:
     frame_ids: tuple[str, ...]
 
     @property
-    def amplitude(self):
+    def amplitude(self) -> torch.Tensor:
         return self.object_field.abs()
 
     @property
-    def phase(self):
+    def phase(self) -> torch.Tensor:
         return self.object_field.angle()
 
 

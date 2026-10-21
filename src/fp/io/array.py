@@ -8,9 +8,9 @@ import cv2
 import numpy as np
 import torch
 
-from ..config import _positive, _positive_integer
 from ..data import MeasurementSet, wavevectors_tensor
 from ..preprocessing import center_crop_resize
+from ..validation import require_positive, require_positive_integer
 
 
 @dataclass(frozen=True)
@@ -34,13 +34,15 @@ class ArraySimLoader:
             "wavevectors_rad_per_m",
             wavevectors_tensor(self.wavevectors_rad_per_m),
         )
-        _positive("pixel_size_m", self.pixel_size_m)
-        _positive_integer("resolution", self.resolution)
+        require_positive("pixel_size_m", self.pixel_size_m)
+        require_positive_integer("resolution", self.resolution)
         if not self.file_extension.startswith(".") or "/" in self.file_extension:
             raise ValueError("file_extension must be a suffix such as .npy or .tif")
 
         try:
-            names = [self.frame_pattern.format(index=i) for i in range(len(self.wavevectors_rad_per_m))]
+            names = [
+                self.frame_pattern.format(index=i) for i in range(len(self.wavevectors_rad_per_m))
+            ]
         except (ValueError, KeyError, IndexError, AttributeError) as error:
             raise ValueError("frame_pattern must format an index, e.g. {index:04d}") from error
         if any(not name or Path(name).name != name or "\\" in name for name in names):
@@ -63,23 +65,17 @@ class ArraySimLoader:
                 if image is None:
                     raise ValueError(f"could not decode {path}")
                 if image.ndim != 2:
-                    raise ValueError(
-                        f"{path}: select a grayscale channel before loading"
-                    )
+                    raise ValueError(f"{path}: select a grayscale channel before loading")
                 if np.issubdtype(image.dtype, np.integer):
                     image = image.astype(np.float64) / np.iinfo(image.dtype).max
-            image, spacing = center_crop_resize(
-                image, self.resolution, self.pixel_size_m
-            )
+            image, spacing = center_crop_resize(image, self.resolution, self.pixel_size_m)
             if effective_spacing is not None and not isclose(
                 spacing,
                 effective_spacing,
                 rel_tol=1e-12,
                 abs_tol=0,
             ):
-                raise ValueError(
-                    "frames have different physical fields of view after cropping"
-                )
+                raise ValueError("frames have different physical fields of view after cropping")
             effective_spacing = spacing
             images.append(image)
             frame_ids.append(path.name)
