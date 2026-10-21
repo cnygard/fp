@@ -13,11 +13,12 @@ import unittest
 
 import cv2
 import numpy as np
+import torch
 from numpy.testing import assert_allclose, assert_array_equal
 
 from fp import (
     AlternatingProjectionReconstructor, FourierPtychographyModel, MeasurementSet,
-    OpticalConfig, ReconstructionGrid, SaviReconstructor, SolverOptions,
+    OpticalConfig, ReconstructionGrid, SaviReconstructor, SolverOptions, TorchConfig,
 )
 from fp.cli import parse_args, run
 from fp.fft import fft2c, ifft2c
@@ -36,7 +37,8 @@ def make_model(shape=(8, 8), upsample=2):
     dkx = 2 * np.pi / (width * optics.pixel_size_m)
     dky = 2 * np.pi / (height * optics.pixel_size_m)
     geometry = np.array([[0., 0.], [dkx, 0.], [0., -dky], [-dkx, dky]])
-    return FourierPtychographyModel(optics, ReconstructionGrid(shape, upsample), geometry)
+    return FourierPtychographyModel(optics, ReconstructionGrid(shape, upsample), geometry,
+                                    compute=TorchConfig(device="cpu", precision="float64"))
 
 
 class MeasurementTests(unittest.TestCase):
@@ -50,8 +52,9 @@ class MeasurementTests(unittest.TestCase):
         assert_array_equal(reordered.intensities[:, 0, 0], [8, 0, 4])
         assert_array_equal(reordered.wavevectors_rad_per_m[:, 0], [4, 0, 2])
         self.assertEqual(reordered.frame_ids, ("c", "a", "b"))
-        self.assertFalse(data.intensities.flags.writeable)
-        self.assertFalse(data.wavevectors_rad_per_m.flags.writeable)
+        self.assertIsInstance(data.intensities, torch.Tensor)
+        self.assertFalse(data.intensities.requires_grad)
+        self.assertFalse(data.wavevectors_rad_per_m.requires_grad)
         with self.assertRaises(ValueError):
             data.reordered([0, 0, 1])
 
@@ -106,6 +109,7 @@ class GeometryAndOpticsTests(unittest.TestCase):
             for scale in (1, 2, 3):
                 model = FourierPtychographyModel(
                     make_model().optics, ReconstructionGrid(shape, scale), [[0, 0]],
+                    compute=TorchConfig(device="cpu", precision="float64"),
                 )
                 data = model.predict_intensities(np.ones(model.grid.object_shape))
                 assert_allclose(data, 1., atol=1e-14)
@@ -115,7 +119,8 @@ class GeometryAndOpticsTests(unittest.TestCase):
         self.assertEqual(model.patches[1], (slice(3, 9), slice(3, 11)))
         self.assertEqual(model.patches[2], (slice(4, 10), slice(4, 12)))
         with self.assertRaisesRegex(ValueError, "frame 0"):
-            FourierPtychographyModel(model.optics, model.grid, [[1e12, 0]])
+            FourierPtychographyModel(model.optics, model.grid, [[1e12, 0]],
+                                     compute=TorchConfig(device="cpu", precision="float64"))
 
     def test_forward_prediction_matches_independent_numpy_calculation(self):
         model = make_model()
@@ -124,7 +129,7 @@ class GeometryAndOpticsTests(unittest.TestCase):
         spectrum = np.fft.fftshift(np.fft.fft2(obj))
         expected = []
         for patch in model.patches:
-            field = np.fft.ifft2(np.fft.ifftshift(spectrum[patch] * model.pupil)) / 4
+            field = np.fft.ifft2(np.fft.ifftshift(spectrum[patch] * model.pupil.cpu().numpy())) / 4
             expected.append(np.abs(field) ** 2)
         assert_allclose(model.predict_intensities(obj), expected, rtol=1e-14, atol=1e-14)
 
@@ -132,7 +137,7 @@ class GeometryAndOpticsTests(unittest.TestCase):
         model = make_model()
         intensities = np.ones((4, 8, 8))
         for data in (
-            MeasurementSet(intensities, model.wavevectors_rad_per_m[::-1], model.optics.pixel_size_m),
+            MeasurementSet(intensities, model.wavevectors_rad_per_m.flip(0), model.optics.pixel_size_m),
             MeasurementSet(intensities, model.wavevectors_rad_per_m, model.optics.pixel_size_m * 2),
         ):
             with self.assertRaises(ValueError):
@@ -163,11 +168,11 @@ class ReconstructionTests(unittest.TestCase):
         class MaskAdapter:
             def detach(self): return self
             def cpu(self): return self
-            def numpy(self): return model.pupil.real.copy()
+            def numpy(self): return model.pupil.real.cpu().numpy().copy()
         config = {"N": model.grid.measurement_shape[0], "out_N": model.grid.object_shape[0],
                   "upsample": model.grid.upsample, "dx": model.optics.pixel_size_m,
                   "k": model.optics.wavenumber_rad_per_m, "M": MaskAdapter()}
-        angles = np.arcsin(model.wavevectors_rad_per_m / config["k"])
+        angles = np.arcsin(model.wavevectors_rad_per_m.cpu().numpy() / config["k"])
         with redirect_stdout(io.StringIO()):
             return namespace["reconstruction"](observations.copy(), angles, options.epochs, config)
 
@@ -199,7 +204,7 @@ class ReconstructionTests(unittest.TestCase):
                 self.assertLess(result.history[-1].amplitude_rmse, result.history[0].amplitude_rmse * .25)
                 self.assertEqual([entry.epoch for entry in callbacks], list(range(1, 9)))
                 assert_allclose(result.object_field, reconstructor.reconstruct(measurements).object_field)
-                self.assertTrue(np.iscomplexobj(result.object_field))
+                self.assertTrue(result.object_field.is_complex())
                 assert_array_equal(model.pupil, result.pupil)
 
     def test_lossless_result_export(self):
@@ -287,12 +292,13 @@ class LoaderAndCliTests(unittest.TestCase):
                     parse_args([str(directory)])
             self.assertEqual(caught.exception.code, 2)
 
-    def test_import_has_no_cli_plotting_or_torch_side_effects(self):
+    def test_import_has_no_cli_or_plotting_side_effects(self):
         checked = subprocess.run([
             sys.executable, "-B", "-c",
             "import sys; sys.argv = ['host', '--unrelated']; import fp; "
             "assert 'matplotlib.pyplot' not in sys.modules; "
-            "assert 'torch' not in sys.modules; assert 'config' not in sys.modules",
+            "assert 'torch' in sys.modules; assert 'config' not in sys.modules; "
+            "assert 'fp.cli' not in sys.modules",
         ], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(checked.returncode, 0, checked.stderr)
 

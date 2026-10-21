@@ -5,11 +5,13 @@ from .data import MeasurementSet
 from .optics import FourierPtychographyModel
 from .reconstructors import AlternatingProjectionReconstructor, SaviReconstructor
 from .results import ReconstructionResult
+from .tensors import TorchConfig
+from .diagnostics import IterationState
 
 __all__ = [
     "OpticalConfig", "ReconstructionGrid", "SolverOptions", "MeasurementSet",
     "FourierPtychographyModel", "AlternatingProjectionReconstructor",
-    "SaviReconstructor", "ReconstructionResult",
+    "SaviReconstructor", "ReconstructionResult", "TorchConfig", "IterationState",
 ]
 
 

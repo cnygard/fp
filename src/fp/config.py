@@ -63,7 +63,7 @@ class ReconstructionGrid:
     @property
     def field_scale(self) -> int:
         """FFT area scaling between the object and measurement grids."""
-        return self.upsample ** 2
+        return self.upsample**2
 
 
 @dataclass(frozen=True)

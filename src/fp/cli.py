@@ -5,18 +5,20 @@ import tomllib
 from dataclasses import replace
 from pathlib import Path
 
-from .config import OpticalConfig, ReconstructionGrid, SolverOptions
+from .config import OpticalConfig, ReconstructionGrid, SolverOptions, _positive_integer
 from .geometry import array_wavevectors
 from .io import ArraySimLoader
 from .optics import FourierPtychographyModel
+from .preprocessing import resize_image
 from .reconstructors import AlternatingProjectionReconstructor, SaviReconstructor
 from .results import save_result
+from .reporting import format_run_summary
+from .tensors import TorchConfig
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        prog="fp",
-        description="Modular single-wavelength array FPM reconstruction"
+        prog="fp", description="Modular single-wavelength array FPM reconstruction"
     )
     parser.add_argument("data_dir", type=Path)
     parser.add_argument(
@@ -57,6 +59,30 @@ def parse_args(argv=None):
     parser.add_argument(
         "--show", action="store_true", help="display amplitude and phase"
     )
+    parser.add_argument(
+        "--device", default="auto", help="cpu, cuda[:index], mps, or auto (default: prefer CUDA, MPS, CPU)"
+    )
+    parser.add_argument(
+        "--precision", choices=("auto", "float32", "float64"), default="auto",
+        help="auto selects the highest supported precision on the selected device"
+    )
+    parser.add_argument(
+        "-d", "--debug", action="store_true", help="show live reconstruction updates"
+    )
+    parser.add_argument(
+        "--debug-every",
+        type=int,
+        default=10,
+        help="updates between debug snapshots; epoch ends are always included",
+    )
+    parser.add_argument(
+        "--debug-dir", type=Path, help="save debug PNG snapshots; works without a GUI"
+    )
+    from .plotting import AVAILABLE_VIEWS, DEFAULT_VIEWS
+
+    parser.add_argument(
+        "--debug-views", nargs="+", choices=AVAILABLE_VIEWS, default=DEFAULT_VIEWS
+    )
     # Use the complete parser on both passes so options may precede data_dir.
     initial_args = parser.parse_args(argv)
     config_path = initial_args.data_dir / "config.toml"
@@ -72,10 +98,13 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     # argparse choices do not validate defaults read from a TOML file.
     for action in parser._actions:
-        if action.choices and getattr(args, action.dest) not in action.choices:
-            parser.error(
-                f"unsupported {action.dest}: {getattr(args, action.dest)!r}; supported: {action.choices}"
-            )
+        if action.choices:
+            value = getattr(args, action.dest)
+            values = value if action.nargs in ("+", "*") else (value,)
+            if any(item not in action.choices for item in values):
+                parser.error(
+                    f"unsupported {action.dest}: {value!r}; supported: {action.choices}"
+                )
     if args.aperture_diameter is None or args.translation is None:
         parser.error(
             "--aperture_diameter and --translation are required (or set them in config.toml)"
@@ -88,6 +117,8 @@ def parse_args(argv=None):
 
 
 def run(args):
+    compute = TorchConfig(device=args.device, precision=args.precision)
+    _positive_integer("debug_every", args.debug_every)
     optics = OpticalConfig(
         pixel_size_m=args.pixel_size_um * 1e-6,
         wavelength_m={"red": 630e-9, "green": 532e-9, "blue": 475e-9}[args.wavelength],
@@ -107,7 +138,7 @@ def run(args):
             geometry, optics.pixel_size_m, args.resolution, args.file_extension
         ).load(args.data_dir)
         optics = replace(optics, pixel_size_m=measurements.pixel_size_m)
-        model = FourierPtychographyModel(optics, grid, geometry)
+        model = FourierPtychographyModel(optics, grid, geometry, compute=compute)
     else:
         import cv2
         import numpy as np
@@ -123,9 +154,10 @@ def run(args):
         if np.issubdtype(image.dtype, np.integer):
             image = image.astype(np.float64) / np.iinfo(image.dtype).max
         height, width = grid.object_shape
-        object_field = cv2.resize(image, (width, height))
-        model = FourierPtychographyModel(optics, grid, geometry)
+        object_field = resize_image(image, (height, width))
+        model = FourierPtychographyModel(optics, grid, geometry, compute=compute)
         measurements = simulate_measurements(object_field, model)
+    print(format_run_summary(args, model, measurements, options), flush=True)
     solver_type = {
         "savi": SaviReconstructor,
         "alternating_projection": AlternatingProjectionReconstructor,
@@ -136,7 +168,30 @@ def run(args):
             f"Epoch {metrics.epoch}/{options.epochs}: amplitude RMSE {metrics.amplitude_rmse:.6g}"
         )
 
-    result = solver_type(model, options).reconstruct(measurements, callback=progress)
+    visualizer = None
+    if args.debug or args.debug_dir is not None:
+        from .plotting import ReconstructionVisualizer
+
+        visualizer = ReconstructionVisualizer(
+            views=args.debug_views,
+            show=args.debug,
+            output_dir=args.debug_dir,
+        )
+    try:
+        result = solver_type(model, options).reconstruct(
+            measurements,
+            callback=progress,
+            observer=visualizer,
+            observer_interval=args.debug_every,
+        )
+    except BaseException:
+        if visualizer is not None:
+            visualizer.close()
+        raise
+    if visualizer is not None:
+        visualizer.finish()
+        if not args.debug:
+            visualizer.close()
     if args.output:
         print(f"Saved {save_result(result, args.output)}")
     if args.show:
@@ -150,5 +205,5 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         run(args)
-    except (ValueError, OSError, TypeError) as error:
+    except (ValueError, OSError, TypeError, RuntimeError) as error:
         raise SystemExit(f"fp: {error}") from error

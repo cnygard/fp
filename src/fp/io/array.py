@@ -1,13 +1,15 @@
 """Load the existing numbered array-simulation files without CLI dependencies."""
 
 from dataclasses import dataclass
+from math import isclose
 from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
 
 from ..config import _positive, _positive_integer
-from ..data import MeasurementSet, wavevectors_array
+from ..data import MeasurementSet, wavevectors_tensor
 from ..preprocessing import center_crop_resize
 
 
@@ -20,14 +22,17 @@ class ArraySimLoader:
     normalization or amplitude conversion is performed.
     """
 
-    wavevectors_rad_per_m: np.ndarray
+    wavevectors_rad_per_m: torch.Tensor
     pixel_size_m: float
     resolution: int = 300
     file_extension: str = ".npy"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "wavevectors_rad_per_m",
-                           wavevectors_array(self.wavevectors_rad_per_m))
+        object.__setattr__(
+            self,
+            "wavevectors_rad_per_m",
+            wavevectors_tensor(self.wavevectors_rad_per_m),
+        )
         _positive("pixel_size_m", self.pixel_size_m)
         _positive_integer("resolution", self.resolution)
         if not self.file_extension.startswith(".") or "/" in self.file_extension:
@@ -48,18 +53,29 @@ class ArraySimLoader:
                 if image is None:
                     raise ValueError(f"could not decode {path}")
                 if image.ndim != 2:
-                    raise ValueError(f"{path}: select a grayscale channel before loading")
+                    raise ValueError(
+                        f"{path}: select a grayscale channel before loading"
+                    )
                 if np.issubdtype(image.dtype, np.integer):
                     image = image.astype(np.float64) / np.iinfo(image.dtype).max
-            image, spacing = center_crop_resize(image, self.resolution, self.pixel_size_m)
-            if effective_spacing is not None and not np.isclose(
-                spacing, effective_spacing, rtol=1e-12, atol=0,
+            image, spacing = center_crop_resize(
+                image, self.resolution, self.pixel_size_m
+            )
+            if effective_spacing is not None and not isclose(
+                spacing,
+                effective_spacing,
+                rel_tol=1e-12,
+                abs_tol=0,
             ):
-                raise ValueError("frames have different physical fields of view after cropping")
+                raise ValueError(
+                    "frames have different physical fields of view after cropping"
+                )
             effective_spacing = spacing
             images.append(image)
             frame_ids.append(path.name)
         return MeasurementSet(
-            np.stack(images), self.wavevectors_rad_per_m,
-            effective_spacing, tuple(frame_ids),
+            torch.stack(images),
+            self.wavevectors_rad_per_m,
+            effective_spacing,
+            tuple(frame_ids),
         )

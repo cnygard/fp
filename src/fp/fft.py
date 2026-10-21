@@ -1,11 +1,13 @@
-"""Centered spectra with NumPy's default FFT normalization, spatial axes only."""
+"""Centered Torch FFTs, default backward normalization, spatial axes only."""
 
-import numpy as np
+import torch
 
 
 def fft2c(field):
-    return np.fft.fftshift(np.fft.fft2(field, axes=(-2, -1)), axes=(-2, -1))
+    field = torch.as_tensor(field)
+    return torch.fft.fftshift(torch.fft.fft2(field, dim=(-2, -1)), dim=(-2, -1))
 
 
 def ifft2c(spectrum):
-    return np.fft.ifft2(np.fft.ifftshift(spectrum, axes=(-2, -1)), axes=(-2, -1))
+    spectrum = torch.as_tensor(spectrum)
+    return torch.fft.ifft2(torch.fft.ifftshift(spectrum, dim=(-2, -1)), dim=(-2, -1))
