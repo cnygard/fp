@@ -49,7 +49,7 @@ file_extension = ".npy"
 samples_count = 225
 resolution = 300
 upsample = 2
-wavelength = "green"
+wavelength = 532.0
 pixel_size_um = 1.85
 aperture_diameter = 79.99
 translation = 28
@@ -65,7 +65,7 @@ pupil_learning = 1.0
 | `samples_count` | Perfect-square number of array/simulation frames; LED inputs use the calibration count |
 | `resolution` | Measurement width and height after preprocessing, pixels |
 | `upsample` | Integer ratio of output dimensions to measurement dimensions |
-| `wavelength` | `red` = 630 nm, `green` = 532 nm, `blue` = 475 nm |
+| `wavelength` | Float wavelength, nanometers |
 | `pixel_size_um` | Native sample-plane pixel spacing, micrometers |
 | `aperture_diameter` | Nominal circular aperture diameter, millimeters |
 | `objective_na` | Objective numerical aperture, instead of `aperture_diameter` |

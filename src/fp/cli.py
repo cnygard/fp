@@ -33,7 +33,8 @@ def _optical_config(args: Namespace) -> OpticalConfig:
         aperture_m = 2 * args.object_distance * tan(asin(args.objective_na / 1.0003))
     return OpticalConfig(
         pixel_size_m=args.pixel_size_um * 1e-6,
-        wavelength_m={"red": 630e-9, "green": 532e-9, "blue": 475e-9}[args.wavelength],
+        # wavelength_m={"red": 630e-9, "green": 532e-9, "blue": 475e-9}[args.wavelength],
+        wavelength_m=args.wavelength*1e-9,
         aperture_diameter_m=aperture_m,
         object_distance_m=args.object_distance,
     )

@@ -75,7 +75,8 @@ def _build_parser() -> argparse.ArgumentParser:
     optics.add_argument("-n", "--samples_count", type=int, default=225)
     optics.add_argument("-r", "--resolution", type=int, default=300)
     optics.add_argument("-u", "--upsample", type=int, default=2)
-    optics.add_argument("--wavelength", choices=("red", "green", "blue"), default="green")
+    # optics.add_argument("--wavelength", choices=("red", "green", "blue"), default="green")
+    optics.add_argument("--wavelength", type=float, default=532)
     optics.add_argument(
         "--pixel_size_um",
         type=float,

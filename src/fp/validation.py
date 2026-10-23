@@ -3,8 +3,8 @@
 from math import isfinite
 
 
-def require_positive(name: str, value: float) -> None:
-    if not isfinite(value) or value <= 0:
+def require_positive(name: str, value) -> None:
+    if not isinstance(value, (float, int)) or not isfinite(value) or value <= 0:
         raise ValueError(f"{name} must be finite and positive")
 
 
